@@ -1,73 +1,127 @@
-import ijson
-import re
 import os
-
+import re
 from pathlib import Path
+
+import ijson
 from charset_normalizer import from_path
 
+
+class MapperResult:
+    def __init__(self, file: str, code: str, line: int):
+        self.file = file
+        self.code = code
+        self.line = line
+
+    def __str__(self) -> str:
+        return f"{self.file}:{self.line}:{self.code}"
 
 
 class Mapper:
 
-    def map(self, file_path: str, address_hex: str, contract_file_name: str, source_files_path: str = None):
-        result = {
-            'file': '',
-            'code': '',
-            'line': 0,
-        }
+    @staticmethod
+    def _read_compiler_version(combined_json_path: str) -> str:
+        e = Mapper._read_from_json_file(combined_json_path, "")
+        if "version" not in e:
+            return "0.0.0"
+        return e["version"]
+
+    @staticmethod
+    def map_hex_address(
+            combined_json_path: str,
+            address_hex: str,
+            contract_name: str,
+            contracts_folder: str = None) \
+            -> MapperResult:
+
+        if Mapper._read_compiler_version(combined_json_path) < "0.6.0":
+            print(f"WARNING: Unsupported Compiler Version {Mapper._read_compiler_version(combined_json_path)}. "
+                  "Please use a version >= 0.6.0")
 
         address_int = int(address_hex, 16)
-        contract_name = self._contract_name_from_file_name(contract_file_name)
+        # contract_file_name = Mapper._contract_for_contract_name(combined_json_path, contract_name)
+        contracts_key = Mapper._contract_for_contract_name(combined_json_path, contract_name)
+        sources_key = Mapper._source_for_contract_name(combined_json_path, contract_name)
 
         # Map hex address to instruction index
-        bin_runtime = self._read_from_json_file(file_path, f"contracts.{contract_file_name}:{contract_name}.bin-runtime")
-        instruction_index = self._instruction_index_from_hex_address(address_int, bin_runtime)
+        bin_runtime = Mapper._read_from_json_file(combined_json_path, f"contracts.{contracts_key}.bin-runtime")
+        instruction_index = Mapper._instruction_index_from_hex_address(address_int, bin_runtime)
         del bin_runtime # Free memory
         if instruction_index == 0:
             raise ValueError(f"Could not find hex address {address_hex} in binary runtime")
 
         # Get instruction for given instruction index
-        srcmap_runtime = self._read_from_json_file(file_path, f"contracts.{contract_file_name}:{contract_name}.srcmap-runtime")
-        instruction = self._instruction_from_instruction_index(srcmap_runtime, instruction_index)
+        srcmap_runtime = Mapper._read_from_json_file(combined_json_path, f"contracts.{contracts_key}.srcmap-runtime")
+        instruction = Mapper._instruction_from_instruction_index(srcmap_runtime, instruction_index)
         del srcmap_runtime # Free memory
         if instruction is None:
             raise ValueError(f"Could not find instruction for index {instruction_index} in source map")
 
         # Get Function details for the instruction
-        ast_json = self._read_from_json_file(file_path, f"sources.{contract_file_name}.AST")
-        function_node = self._ast_node_from_instruction(ast_json, instruction)
+        ast_json = Mapper._read_from_json_file(combined_json_path, f"sources.{sources_key}.AST")
+        function_node = Mapper._ast_node_from_instruction(ast_json, instruction)
 
         #If we have the source file we can directly read the instruction
-
-        if source_files_path:
-            result = self._read_result_from_source_code(function_node, file_path, source_files_path)
+        if contracts_folder:
+            snippet = Mapper._read_snippet_from_source_code(function_node, combined_json_path, contracts_folder)
+            return MapperResult(snippet['file'], snippet['code'], snippet['line'])
         else:
-            _, _, file_id = self._parse_function_node(function_node)
-            file_node = self._file_node_by_index(file_path, int(file_id))
-            result['file'] = self._file_location_from_file_node(file_node)
-            result['code'] = self._reconstruct_code_from_ast(function_node['expression'])
+            _, _, file_id = Mapper._parse_function_node(function_node)
+            file_node = Mapper._file_node_by_index(combined_json_path, int(file_id))
+            return MapperResult(
+                file=Mapper._file_location_from_file_node(file_node),
+                code=Mapper._reconstruct_code_from_ast(function_node['expression']),
+                line=0  # Set to 0. We don't have the source code so we cannot calculate the line
+            )
 
-        print(result)
+    @staticmethod
+    def _contract_for_contract_name(combined_json_path: str, contract_name: str) -> str:
+        contracts = Mapper._read_from_json_file(combined_json_path, "contracts")
+        matches = Mapper._contract_name_matches(contract_name, contracts.items())
+        if len(matches) > 1:
+            raise ValueError(
+                f"Multiple possible contracts found for name {contract_name}: {list(map(lambda x: x[0], matches))}")
+        if len(matches) == 0:
+            raise ValueError(f"No contract found for name {contract_name} in {combined_json_path}.")
+        return matches[0][0]
 
+    @staticmethod
+    def _source_for_contract_name(combined_json_path: str, contract_name: str) -> str:
+        sources = Mapper._read_from_json_file(combined_json_path, "sources")
+        matches = Mapper._contract_name_matches(contract_name, sources.items())
+        if len(matches) > 1:
+            raise ValueError(
+                f"Multiple possible sources found for name {contract_name}: {list(map(lambda x: x[0], matches))}")
+        if len(matches) == 0:
+            raise ValueError(f"No contract found for name {contract_name} in {combined_json_path})")
+        return matches[0][0]
 
-    def _construct_contract_path(self, file_location: str) -> str:
+    @staticmethod
+    def _contract_name_matches(contract_name: str, options):
+        regex = f"(^|[\\/]){contract_name}.*"
+        matches = list(filter(lambda x: re.search(regex, x[0], re.IGNORECASE) is not None, options))
+        return matches
+
+    @staticmethod
+    def _construct_contract_path(file_location: str) -> str:
         dir_path = Path(os.path.dirname(__file__))
         file_location_path = Path(file_location)
         full_path = str(dir_path / ".." / file_location_path)
         return full_path
 
-
-    def _file_node_by_index(self, json_file_path:str, file_id:int):
+    @staticmethod
+    def _file_node_by_index(json_file_path: str, file_id: int):
         # Get the file (location) for the given file_id
-        return list(self._read_from_json_file(json_file_path, "sources").items())[file_id]
+        return list(Mapper._read_from_json_file(json_file_path, "sources").items())[file_id]
 
-    def _file_location_from_file_node(self, file_node:dict):
+    @staticmethod
+    def _file_location_from_file_node(file_node: dict):
         file_location = file_node[1]["AST"]["absolutePath"]
         if file_location is None:
             raise ValueError("No absolutePath in given json file.")
         return file_location
 
-    def _parse_function_node(self, function_node:dict):
+    @staticmethod
+    def _parse_function_node(function_node: dict):
         src = function_node['src']
 
         if not src:
@@ -82,7 +136,8 @@ class Mapper:
 
         return parts
 
-    def _read_snippet_from_file(self, file_path:str, start:int, length:int):
+    @staticmethod
+    def _read_snippet_from_file(file_path: str | Path, start: int, length: int) -> dict[str, int | str] | None:
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
 
@@ -97,29 +152,39 @@ class Mapper:
                     characters_count -= len(line)
                     start = start - characters_count
                     return {
-                        'file': file_path,
-                        'code': line[start:(start + int(length))],
-                        'line': line_count,
+                        'file': str(file_path),
+                        'code': str(line[start:(start + int(length))]),
+                        'line': int(line_count),
                     }
 
-
-    def _read_result_from_source_code(self, function_node: dict, json_file_path:str ,source_files_path: str):
-
+    @staticmethod
+    def _read_snippet_from_source_code(function_node: dict, json_file_path: str, source_files_path: str) -> dict:
         # Read the source to get the position of the statement described in the function node
-        start, length, file_id = self._parse_function_node(function_node)
-        file_node = self._file_node_by_index(json_file_path, int(file_id))
+        start, length, file_id = Mapper._parse_function_node(function_node)
+        file_node = Mapper._file_node_by_index(json_file_path, int(file_id))
 
         # Get the file (location) for the given file_id
-        file_location = self._file_location_from_file_node(file_node)
-        source_file = os.path.join(source_files_path, "..", file_location)
-        #full_path = self._construct_contract_path(file_location)
+        file_location = Mapper._file_location_from_file_node(file_node)
+        source_file = Mapper._merge_paths(source_files_path, file_location)
 
-        return self._read_snippet_from_file(source_file, int(start), int(length))
+        return Mapper._read_snippet_from_file(source_file, int(start), int(length))
 
+    @staticmethod
+    def _merge_paths(path1: str | Path, path2: str | Path) -> Path:
+        p1_parts = Path(path1).parts
+        p2_parts = Path(path2).parts
 
+        # Find the overlap point
+        for i in range(len(p1_parts)):
+            if str(p1_parts[i:]).lower() == str(p2_parts[:len(p1_parts[i:])]).lower():
+                merged = Path(*p1_parts[:i], *p2_parts)
+                return merged
 
+        # If no overlap, just join normally
+        return Path(path1) / Path(path2)
 
-    def _get_line_number(self, function_node: dict, json_file_path: str) -> int:
+    @staticmethod
+    def _get_line_number(function_node: dict, json_file_path: str) -> int:
         # Read the source to get the position of the statement described in the function node
         src = function_node['src']
 
@@ -135,20 +200,20 @@ class Mapper:
         start, length, file_id = parts
 
         # Get the file (location) for the given file_id
-        files_node = list(self._read_from_json_file(json_file_path, "sources").items())[int(file_id)]
+        files_node = list(Mapper._read_from_json_file(json_file_path, "sources").items())[int(file_id)]
         file_location = files_node[1]["AST"]["absolutePath"]
         if file_location is None:
             print("Error: Could not calculate line. No absolutePath for given file.")
             return 0
-        full_path = self._construct_contract_path(file_location)
+        full_path = Mapper._construct_contract_path(file_location)
 
         if not os.path.isfile(full_path):
             print(f"Error: Could not calculate line. File not found: {full_path}")
             return 0
 
-        characters_count = 0
-        line_count = 0
-        encoding = from_path(full_path).best().encoding
+        characters_count: int = 0
+        line_count: int = 0
+        encoding: str = from_path(full_path).best().encoding
         with open(full_path, "r", encoding=encoding) as file:
             for line in file:
                 characters_count += len(line)
@@ -156,7 +221,10 @@ class Mapper:
                 if characters_count >= int(start):
                     return line_count
 
-    def _reconstruct_code_from_ast(self, node: dict) -> str:
+        raise ValueError(f"Could not find character position {start} in file {full_path}: EOF")
+
+    @staticmethod
+    def _reconstruct_code_from_ast(node: dict) -> str:
         """
         Reconstructs Solidity source code from an AST node without access to the original source.
 
@@ -177,7 +245,8 @@ class Mapper:
         printer = SolidityASTPrinter()
         return printer.reconstruct(node)
 
-    def _ast_node_from_instruction(self, ast_json, source_location):
+    @staticmethod
+    def _ast_node_from_instruction(ast_json, source_location):
         """
         Finds the smallest AST node that fully contains the given source location.
 
@@ -206,7 +275,7 @@ class Mapper:
 
         Example:
             source_location = {'offset': 120, 'length': 8, 'file_id': 0}
-            node = self._ast_node_from_instruction(ast_json, source_location)
+            node = Mapper._ast_node_from_instruction(ast_json, source_location)
             print(node['nodeType'])  # e.g., 'ExpressionStatement'
         """
         target_offset = source_location['offset']
@@ -259,7 +328,8 @@ class Mapper:
 
         return best_match
 
-    def _instruction_index_from_hex_address(self, pc:int, bytecode:str) -> int:
+    @staticmethod
+    def _instruction_index_from_hex_address(pc: int, bytecode: str) -> int:
         """
         Convert a program counter (PC) value to an instruction index in the bytecode.
 
@@ -320,7 +390,8 @@ class Mapper:
 
         return instruction_index
 
-    def _instruction_from_instruction_index(self, srcmap, instruction_index):
+    @staticmethod
+    def _instruction_from_instruction_index(srcmap, instruction_index):
         """
         Extracts the source code location metadata for a specific instruction index
         from a Solidity source map.
@@ -380,7 +451,7 @@ class Mapper:
             #offset:length:fileIndex:jump:modifierDepth
             parts = entry.split(':')
 
-            # Update values based on this entry, handling compression
+            # Update values based on this entry
             # Compression rule: If an entry omits an empty field (e.g. ''), it inherits the value from the previous entry.
             if 'offset' in remaining and len(parts) > 0 and parts[0] != '':
                 result['offset'] = int(parts[0])
@@ -417,28 +488,38 @@ class Mapper:
             'modifiers': result['modifiers']
         }
 
-
-
-    def _contract_name_from_file_name(self, file_name: str):
-        match = re.search(r"(\/)([^.]+)\.sol", file_name)
-        if match and len(match.groups()) == 2:
-            return match.group(2)
-        else:
-            raise ValueError(f"Unable to extract contract name from {file_name}")
-
-
-    def _read_from_json_file(self, file_path, item_path:str):
+    @staticmethod
+    def _read_from_json_file(file_path, item_path: str):
         with open(file_path, "rb") as f:
             objects = ijson.items(f, item_path)
             return next(objects)
 
 
-
-        
-
 if __name__ == "__main__":
-    mapper = Mapper()
-    mapper.map("../BeerBar.json", "0x1798", "Contracts/BeerBar.sol", source_files_path="../contracts")
-    mapper.map("../BeerBar.json", "0x90e", "Contracts/BeerBar.sol", source_files_path="../contracts")
-    mapper.map("../BeerBar.json", "0xdda", "Contracts/BeerBar.sol", source_files_path="../contracts")
-    mapper.map("../BeerBar.json", "0x1525", "Contracts/BeerBar.sol", source_files_path="../contracts")
+    print("Hex 0x1798")
+    print(Mapper.map_hex_address(
+        combined_json_path="../BeerBar.json",
+        address_hex="0x1798",
+        contract_name="BeerBar",
+        contracts_folder="../contracts"))
+
+    print("\nHex 0x90e")
+    print(Mapper.map_hex_address(
+        combined_json_path="../BeerBar.json",
+        address_hex="0x90e",
+        contract_name="BeerBar",
+        contracts_folder="../contracts"))
+
+    print("\nHex 0xdda")
+    print(Mapper.map_hex_address(
+        combined_json_path="../BeerBar.json",
+        address_hex="0xdda",
+        contract_name="BeerBar.sol",
+        contracts_folder="../contracts"))
+
+    print("\nHex 0x1525")
+    print(Mapper.map_hex_address(
+        combined_json_path="../BeerBar.json",
+        address_hex="0x1525",
+        contract_name="BeerBar.sol",
+        contracts_folder="../contracts"))
