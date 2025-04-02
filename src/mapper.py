@@ -81,6 +81,9 @@ class Mapper:
                                 if no instruction is found for the index, or if the contract
                                 cannot be found.
                     FileNotFoundError: If the specified combined JSON file does not exist.
+                    KeyError: If the combined-json-output.json file does not contain the expected keys.
+                              If this happens, please verify that you used the following flags to compile your contracts:
+                              ``--combined-json bin,bin-runtime,srcmap,srcmap-runtime,asm,ast``
 
                 Example:
                     ```python
@@ -723,7 +726,10 @@ class Mapper:
         """
         with open(file_path, "rb") as f:
             objects = ijson.items(f, item_path)
-            return next(objects)
+            try:
+                return next(objects)
+            except StopIteration:
+                raise KeyError(f"Path '{item_path}' not found in JSON file '{file_path}'")
 
 
 if __name__ == "__main__":
