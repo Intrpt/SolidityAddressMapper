@@ -74,6 +74,7 @@ class Mapper:
 
                 Returns:
                     MapperResult: Object containing file path, code snippet, and line number.
+                                  If no source code is found, the line number will be set to 0.
 
                 Raises:
                     ValueError: If the hex address cannot be found in the binary runtime,
