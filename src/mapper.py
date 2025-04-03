@@ -100,6 +100,10 @@ class Mapper:
         if not os.path.isfile(combined_json_path):
             raise FileNotFoundError(f"File not found: {combined_json_path}")
 
+        encoding = from_path(combined_json_path).best().encoding
+        if not "utf_8" in encoding and not "utf-8" in encoding and not "utf8" in encoding and not "ascii" in encoding:
+            print(f"WARNING: Using non-utf-8 encoding. This might cause issues. (Found: {encoding})")
+
         if Mapper._read_compiler_version(combined_json_path) < "0.6.0":
             print(f"WARNING: Unsupported Compiler Version {Mapper._read_compiler_version(combined_json_path)}. "
                   "Please use a version >= 0.6.0")
