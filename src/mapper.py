@@ -129,16 +129,21 @@ class Mapper:
 
         #If we have the source file we can directly read the instruction
         if contracts_folder:
-            snippet = Mapper._read_snippet_from_source_code(function_node, combined_json_path, contracts_folder)
-            return MapperResult(snippet['file'], snippet['code'], snippet['line'])
-        else:
-            _, _, file_id = Mapper._parse_function_node(function_node)
-            file_node = Mapper._file_node_by_index(combined_json_path, int(file_id))
-            return MapperResult(
-                file=Mapper._file_location_from_file_node(file_node),
-                code=Mapper._reconstruct_code_from_ast(function_node['expression']),
-                line=0  # Set to 0. We don't have the source code so we cannot calculate the line
-            )
+            try:
+                snippet = Mapper._read_snippet_from_source_code(function_node, combined_json_path, contracts_folder)
+                return MapperResult(snippet['file'], snippet['code'], snippet['line'])
+            except FileNotFoundError:
+                print(f"Source file '{sources_key}' not found. Reconstructing code from AST.")
+                pass
+
+        # Otherwise we reconstruct the function
+        _, _, file_id = Mapper._parse_function_node(function_node)
+        file_node = Mapper._file_node_by_index(combined_json_path, int(file_id))
+        return MapperResult(
+            file=Mapper._file_location_from_file_node(file_node),
+            code=Mapper._reconstruct_code_from_ast(function_node['expression']),
+            line=0  # Set to 0. We don't have the source code so we cannot calculate the line
+        )
 
     @staticmethod
     def _read_compiler_version(combined_json_path: str) -> str:
