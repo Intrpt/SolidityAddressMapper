@@ -109,7 +109,6 @@ class Mapper:
                   "Please use a version >= 0.6.0")
 
         address_int = int(address_hex, 16)
-        # contract_file_name = Mapper._contract_for_contract_name(combined_json_path, contract_name)
         contracts_key = Mapper._contract_key_for_contract_name(combined_json_path, contract_name)
         sources_key = Mapper._source_key_for_contract_name(combined_json_path, contract_name)
 
@@ -394,60 +393,6 @@ class Mapper:
 
         # If no overlap, just join normally
         return Path(path1) / Path(path2)
-
-    @staticmethod
-    def _get_line_number(function_node: dict, json_file_path: str) -> int:
-        """
-        Calculates the line number in a source file for a given function node.
-
-        Args:
-            function_node (dict): An AST node containing source location information.
-            json_file_path (str): Path to the combined JSON output from the Solidity compiler.
-
-        Returns:
-            int: The line number (1-based) of the function in the source file,
-                 or 0 if the line number cannot be determined.
-
-        Raises:
-            ValueError: If the character position cannot be found in the file.
-        """
-        # Read the source to get the position of the statement described in the function node
-        src = function_node['src']
-
-        if not src:
-            print("Error: Could not calculate line. No src attribute for given function node.")
-            return 0
-
-        parts = src.split(':')
-        if len(parts) != 3:
-            print("Error: Could not calculate line. Invalid src attribute for given function node. Expected format: offset:length:file_id")
-            return 0
-
-        start, length, file_id = parts
-
-        # Get the file (location) for the given file_id
-        files_node = list(Mapper._read_from_json_file(json_file_path, "sources").items())[int(file_id)]
-        file_location = files_node[1]["AST"]["absolutePath"]
-        if file_location is None:
-            print("Error: Could not calculate line. No absolutePath for given file.")
-            return 0
-        full_path = Mapper._construct_contract_path(file_location)
-
-        if not os.path.isfile(full_path):
-            print(f"Error: Could not calculate line. File not found: {full_path}")
-            return 0
-
-        characters_count: int = 0
-        line_count: int = 0
-        encoding: str = from_path(full_path).best().encoding
-        with open(full_path, "r", encoding=encoding) as file:
-            for line in file:
-                characters_count += len(line)
-                line_count += 1
-                if characters_count >= int(start):
-                    return line_count
-
-        raise ValueError(f"Could not find character position {start} in file {full_path}: EOF")
 
     @staticmethod
     def _reconstruct_code_from_ast(node: dict) -> str:
