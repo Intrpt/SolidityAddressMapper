@@ -1,0 +1,2 @@
+charset-normalizer==3.4.1
+ijson==3.3.0
