@@ -5,6 +5,8 @@ from pathlib import Path
 import ijson
 from charset_normalizer import from_path
 
+from solidity_address_mapper.reconstructor import SolidityASTReconstructor
+
 
 class MapperResult:
     """
@@ -40,7 +42,6 @@ class MapperResult:
             str: A formatted string showing file path, line number, and code.
         """
         return f"{self.file}:{self.line}:{self.code}"
-
 
 class Mapper:
     """
@@ -136,7 +137,7 @@ class Mapper:
                 snippet = Mapper._read_snippet_from_source_code(function_node, combined_json_path, contracts_folder)
                 return MapperResult(snippet['file'], snippet['code'], snippet['line'])
             except FileNotFoundError:
-                print(f"Source file '{sources_key}' not found. Reconstructing code from AST.")
+                print(f"Source file '{sources_key}' not found in {contracts_folder} . Reconstructing code from AST.")
                 pass
 
         # Otherwise we reconstruct the function
@@ -412,9 +413,8 @@ class Mapper:
         Raises:
             ValueError: If the node type is unsupported or required information is missing.
         """
-        from solidity_ast_printer import SolidityASTPrinter
-        printer = SolidityASTPrinter()
-        return printer.reconstruct(node)
+        reconstructor = SolidityASTReconstructor()
+        return reconstructor.reconstruct(node)
 
     @staticmethod
     def _ast_node_from_instruction(ast_json, source_location):
@@ -684,33 +684,3 @@ class Mapper:
                 return next(objects)
             except StopIteration:
                 raise KeyError(f"Path '{item_path}' not found in JSON file '{file_path}'")
-
-
-if __name__ == "__main__":
-    print("Hex 1798")
-    print(Mapper.map_hex_address(
-        combined_json_path="../BeerBar.json",
-        address_hex="1798",
-        contract_name="BeerBar",
-        contracts_folder="../contracts"))
-
-    print("\nHex 90e")
-    print(Mapper.map_hex_address(
-        combined_json_path="../BeerBar.json",
-        address_hex="90e",
-        contract_name="BeerBar",
-        contracts_folder="../contracts"))
-
-    print("\nHex 0xdda")
-    print(Mapper.map_hex_address(
-        combined_json_path="../BeerBar.json",
-        address_hex="0xdda",
-        contract_name="BeerBar.sol",
-        contracts_folder="../contracts"))
-
-    print("\nHex 0x1525")
-    print(Mapper.map_hex_address(
-        combined_json_path="../BeerBar.json",
-        address_hex="0x1525",
-        contract_name="BeerBar.sol",
-        contracts_folder="../contracts/"))

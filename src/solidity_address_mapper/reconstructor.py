@@ -1,4 +1,4 @@
-class SolidityASTPrinter:
+class SolidityASTReconstructor:
     def __init__(self):
         # Map nodeTypes to handler methods
         self._handlers = {
