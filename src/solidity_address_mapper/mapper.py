@@ -533,32 +533,29 @@ class Mapper:
         except ValueError:
             raise ValueError("Bytecode must be a valid hex string with an even number of characters")
 
-        instruction_index: int = 0 # count how many actual EVM instructions we've seen.
-        current_pc = 0 # current position (in bytes) as we walk through the bytecode
 
         if pc > len(bytecode_bytes):
             raise ValueError(f"PC value {pc} is greater than the length of the bytecode {len(bytecode_bytes)}")
 
-        # Go byte by byte until we reach the given program counter (pc) or the end of the bytecode.
-        while current_pc < len(bytecode_bytes) and current_pc < pc:
-            opcode = bytecode_bytes[current_pc]
+        # If the PC is at the beginning of the bytecode, return 0 as it indicates the first instruction
+        if pc == 0:
+            return 0
 
-            # Handle PUSH instructions which have additional data bytes
-            # The number after "PUSH" indicates how many bytes of data to push. For example:
-            # 0x60 (PUSH1): Pushes 1 byte of data. 0x61 (PUSH2): Pushes 2 bytes of data. and so on...
-            if 0x60 <= opcode <= 0x7f:  # PUSH1 to PUSH32
-                data_size = opcode - 0x5f  # Calculate number of data bytes (0x60 - 0x5f = 1 (PUSH1))
-                next_pc = current_pc + 1 + data_size
-            # For all other instructions we read 1 byte
+        instruction_index: int = -1  # count how many actual EVM instructions we've seen.
+        push_data_bytes = 0 # Length of the data bytes for PUSH instructions
+
+        # Idea: Go byte by byte until we reach the given program counter (pc) or the end of the bytecode.
+        # current_pc = current position (in bytes) as we walk through the bytecode
+        # current_op = current opcode (in bytes) as we walk through the bytecode
+        for current_pc, current_op in enumerate(bytecode_bytes):
+            if push_data_bytes > 0:
+                push_data_bytes -= 1
             else:
-                next_pc = current_pc + 1
-
-            if pc < next_pc:
-                # PC is in the middle of the PUSH instruction, so stop
+                instruction_index += 1
+                if 0x60 <= current_op <= 0x7f:  # PUSH1 to PUSH32
+                    push_data_bytes = current_op - 0x5f  # Calculate number of data bytes (0x60 - 0x5f = 1 (PUSH1))
+            if current_pc == pc:
                 break
-
-            current_pc = next_pc
-            instruction_index += 1
 
         return instruction_index
 
