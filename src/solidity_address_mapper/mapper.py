@@ -455,10 +455,10 @@ class Mapper:
             node = Mapper._ast_node_from_instruction(ast_json, source_location)
             print(node['nodeType'])  # e.g., 'ExpressionStatement'
         """
-        target_offset = source_location['offset']
+        target_start = source_location['offset']
         target_length = source_location['length']
         target_file_id = source_location['file_id']
-        target_end = target_offset + max(target_length, 1)
+        target_end = target_start + target_length
 
         # Track the smallest containing node
         best_match = None
@@ -466,42 +466,42 @@ class Mapper:
 
         # Function to recursively search through AST nodes
         def search_node(node):
-            nonlocal best_match, smallest_range
+            nonlocal best_match, smallest_range, target_file_id, target_start, target_end
 
             # Check if this node has source location
             if 'src' in node:
                 src_parts = node['src'].split(':')
-                node_offset = int(src_parts[0])
+                node_start = int(src_parts[0])
                 node_length = int(src_parts[1])
                 node_file_id = int(src_parts[2])
-                node_end = node_offset + node_length
+                node_end = node_start + node_length
 
                 # Check if this node contains our target location
-                contains_target = (
-                        node_file_id == target_file_id and
-                        node_offset <= target_offset and
-                        node_end >= target_end
-                )
+                if node_file_id == target_file_id:
 
-                # If it contains the target and has a smaller range than our current best match
-                if contains_target and node_length < smallest_range:
-                    best_match = node
-                    smallest_range = node_length
+                    # If target is within the node 
+                    # We dont handle the case where the node is fully contained in the target
+                    if node_start <= target_start <= target_end <= node_end:
+                        print(f"full: {node['nodeType']}")
+                        if node_length < smallest_range:
+                            best_match = node
+                            smallest_range = node_length
 
-            # Always continue searching children, even if we found a match
-            for key, value in node.items():
-                if isinstance(value, dict):
-                    search_node(value)
-                elif isinstance(value, list):
-                    for item in value:
-                        if isinstance(item, dict):
-                            search_node(item)
+
+                    # Always continue searching children, even if we found a match
+                    for key, value in node.items():
+                        if isinstance(value, dict):
+                            search_node(value)
+                        elif isinstance(value, list):
+                            for item in value:
+                                if isinstance(item, dict):
+                                    search_node(item)
 
         # Start search from the root
         search_node(ast_json)
 
         if best_match is None:
-            raise ValueError(f"Could not find node for instruction at offset {target_offset} in AST")
+            raise ValueError(f"Could not find node for instruction at offset {target_start} in AST")
 
         return best_match
 
