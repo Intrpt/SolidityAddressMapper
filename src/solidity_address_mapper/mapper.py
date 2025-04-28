@@ -127,18 +127,23 @@ class Mapper:
         if instruction is None:
             raise ValueError(f"Could not find instruction for index {instruction_index} in source map")
 
-        # Get Function details for the instruction
-        ast_json = Mapper._read_from_json_file(combined_json_path, f"sources.{sources_key}.AST")
-        function_node = Mapper._ast_node_from_instruction(ast_json, instruction)
+        file_node = Mapper._file_node_by_index(combined_json_path, instruction['file_id'])
 
         #If we have the source file we can directly read the instruction
         if contracts_folder:
             try:
-                snippet = Mapper._read_snippet_from_source_code(function_node, combined_json_path, contracts_folder)
+                # Get the file (location) for the given file_id
+                file_location = Mapper._file_location_from_file_node(file_node)
+                source_file = Mapper._merge_paths(contracts_folder, file_location)
+                snippet = Mapper._read_snippet_from_file(source_file, instruction['offset'], instruction['length'])
                 return MapperResult(snippet['file'], snippet['code'], snippet['line'])
             except FileNotFoundError:
                 print(f"Source file '{sources_key}' not found in {contracts_folder} . Reconstructing code from AST.")
                 pass
+
+        # Get Function details for the instruction
+        ast_json = Mapper._read_from_json_file(combined_json_path, f"sources.{sources_key}.AST")
+        function_node = Mapper._ast_node_from_instruction(ast_json, instruction)
 
         # Otherwise we reconstruct the function
         _, _, file_id = Mapper._parse_function_node(function_node)
