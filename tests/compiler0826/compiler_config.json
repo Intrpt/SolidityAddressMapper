@@ -1,0 +1,19 @@
+{
+	"language": "Solidity",
+	"settings": {
+	  "outputSelection": {
+		"*": {
+		  "": ["ast"],
+		  "*": [
+			"evm.deployedBytecode.object",
+			"evm.deployedBytecode.sourceMap"
+		  ]
+		}
+	  },
+	  "remappings": [],
+      "optimizer": { "enabled": false },
+      "evmVersion": "cancun",
+      "metadata": { "bytecodeHash": "none" }
+	}
+  }
+  
