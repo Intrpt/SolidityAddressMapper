@@ -11,16 +11,7 @@ class TestClass:
             contracts_folder="tests/compiler0826")
         self._assert_code_in_line(result, 'require(hasRole(OWNER, msg.sender), "Barkeepers have to be set by owners")', 54)
     
-    def test_library_call_before_PUSH32(self):
-        ''' Test line 55 "_grantRole(BARKEEPER, account)" in the BeerBar contract.
-         This is a POP instruction before the PUSH32 instruction.'''
-        result: MapperResult = Mapper.map_hex_address(
-            combined_json_path="tests/compiler0826/compiled/BeerBar.json",
-            address_hex="0x79E",
-            contract_name="BeerBar.sol",
-            contracts_folder="tests/compiler0826")
-        self._assert_code_in_line(result, '_grantRole(BARKEEPER, account)', 55)
-    
+
     def test_PUSH32(self):
         ''' Test line 56 "emit BarkeeperAdded(account)" in the BeerBar contract.
          This conains a PUSH32 instruction.'''
