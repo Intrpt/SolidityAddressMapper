@@ -505,6 +505,8 @@ class Mapper:
 
         return best_match
 
+
+
     @staticmethod
     def _instruction_index_from_hex_address(pc: int, bytecode: str) -> int:
         """
@@ -563,6 +565,8 @@ class Mapper:
                 break
 
         return instruction_index
+
+
 
     @staticmethod
     def _instruction_from_instruction_index(srcmap, instruction_index):
