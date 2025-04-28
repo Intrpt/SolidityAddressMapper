@@ -326,21 +326,22 @@ class Mapper:
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        characters_count = 0
-        line_count = 0
         encoding = from_path(file_path).best().encoding
-        with open(file_path, "r", encoding=encoding) as file:
-            for line in file:
-                characters_count += len(line)
-                line_count += 1
-                if characters_count >= start:
-                    characters_count -= len(line)
-                    start = start - characters_count
-                    return {
-                        'file': str(file_path),
-                        'code': str(line[start:(start + int(length))]),
-                        'line': int(line_count),
-                    }
+        
+        with open(file_path, 'rb') as file:
+            # Read the portion before the start position and count newlines
+            head = file.read(start)
+            newline_count = head.count(b'\n')
+            
+            # Read the substring from the start position
+            substring = file.read(length)
+
+        
+        return {
+            'file': str(file_path),
+            'code': str(substring.decode(encoding)),
+            'line': newline_count + 1,  # +1 because line numbers are 1-based
+        }
 
     @staticmethod
     def _read_snippet_from_source_code(function_node: dict, json_file_path: str, source_files_path: str) -> dict:
