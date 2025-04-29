@@ -5,8 +5,6 @@ from pathlib import Path
 import ijson
 from charset_normalizer import from_path
 
-from solidity_address_mapper.reconstructor import SolidityASTReconstructor
-
 
 class MapperResult:
     """
@@ -53,7 +51,7 @@ class Mapper:
     """
     @staticmethod
     def map_hex_address(
-            combined_json_path: str,
+            compiler_output_json: str,
             address_hex: str,
             contract_name: str,
             contracts_folder: str = None) \
@@ -67,7 +65,7 @@ class Mapper:
                 that corresponds to the given address.
 
                 Args:
-                    combined_json_path (str): Path to the combined JSON output from the Solidity compiler.
+                    compiler_output_json (str): Path to the JSON output from the Solidity compiler.
                     address_hex (str): Hexadecimal address to map (can handle both with and without '0x' prefix).
                     contract_name (str): Name of the contract containing the address.
                     contracts_folder (str, optional): Path to the folder containing source contracts.
@@ -81,15 +79,14 @@ class Mapper:
                     ValueError: If the hex address cannot be found in the binary runtime,
                                 if no instruction is found for the index, or if the contract
                                 cannot be found.
-                    FileNotFoundError: If the specified combined JSON file does not exist.
-                    KeyError: If the combined-json-output.json file does not contain the expected keys.
-                              If this happens, please verify that you used the following flags to compile your contracts:
-                              ``--combined-json bin,bin-runtime,srcmap,srcmap-runtime,asm,ast``
+                    FileNotFoundError: If the specified JSON file does not exist.
+                    KeyError: If the compiler_output_json file does not contain the expected keys.
+
 
                 Example:
                     ```python
                     result = Mapper.map_hex_address(
-                        "build/combined.json",
+                        "build/compiler_output_json.json",
                         "0xa1b2c3",
                         "MyContract",
                         "../contracts/"
@@ -98,61 +95,47 @@ class Mapper:
                     ```
                 """
 
-        if not os.path.isfile(combined_json_path):
-            raise FileNotFoundError(f"File not found: {combined_json_path}")
+        if not os.path.isfile(compiler_output_json):
+            raise FileNotFoundError(f"File not found: {compiler_output_json}")
 
-        encoding = from_path(combined_json_path).best().encoding
+        encoding = from_path(compiler_output_json).best().encoding
         if not "utf_8" in encoding and not "utf-8" in encoding and not "utf8" in encoding and not "ascii" in encoding:
             print(f"WARNING: Using non-utf-8 encoding. This might cause issues. (Found: {encoding})")
 
-        if Mapper._read_compiler_version(combined_json_path) < "0.6.0":
-            print(f"WARNING: Unsupported Compiler Version {Mapper._read_compiler_version(combined_json_path)}. "
-                  "Please use a version >= 0.6.0")
 
         address_int = int(address_hex, 16)
-        contracts_key = Mapper._contract_key_for_contract_name(combined_json_path, contract_name)
-        sources_key = Mapper._source_key_for_contract_name(combined_json_path, contract_name)
+        contracts_key = Mapper._contract_key_for_contract_name(compiler_output_json, contract_name)
+        if contracts_key == contract_name:
+            print("WARNING: contract file name is equal to contract name, likely you have used the solidity file name as contract name.")
+        meta_data_json = Mapper._read_from_json_file(compiler_output_json,f"contracts.{contracts_key}.{contract_name}.metadata")
+
+        #Verify compiler version
+        compiler_version = Mapper._read_from_json_string(meta_data_json, "compiler.version")
+        if compiler_version < "0.6.0":
+            print(f"WARNING: Unsupported Compiler Version {Mapper._read_compiler_version(compiler_output_json)}. "
+                  "Please use a version >= 0.6.0")
+
 
         # Map hex address to instruction index
-        bin_runtime = Mapper._read_from_json_file(combined_json_path, f"contracts.{contracts_key}.bin-runtime")
+        bin_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contracts_key}.{contract_name}.evm.deployedBytecode.object")
         instruction_index = Mapper._instruction_index_from_hex_address(address_int, bin_runtime)
         del bin_runtime # Free memory
         if instruction_index == 0:
             raise ValueError(f"Could not find hex address {address_hex} in binary runtime")
 
         # Get instruction for given instruction index
-        srcmap_runtime = Mapper._read_from_json_file(combined_json_path, f"contracts.{contracts_key}.srcmap-runtime")
+        srcmap_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contracts_key}.{contract_name}.evm.deployedBytecode.sourceMap")
         instruction = Mapper._instruction_from_instruction_index(srcmap_runtime, instruction_index)
         del srcmap_runtime # Free memory
         if instruction is None:
             raise ValueError(f"Could not find instruction for index {instruction_index} in source map")
 
-        file_node = Mapper._file_node_by_index(combined_json_path, instruction['file_id'])
 
-        #If we have the source file we can directly read the instruction
-        if contracts_folder:
-            try:
-                # Get the file (location) for the given file_id
-                file_location = Mapper._file_location_from_file_node(file_node)
-                source_file = Mapper._merge_paths(contracts_folder, file_location)
-                snippet = Mapper._read_snippet_from_file(source_file, instruction['offset'], instruction['length'])
-                return MapperResult(snippet['file'], snippet['code'], snippet['line'])
-            except FileNotFoundError:
-                print(f"Source file '{sources_key}' not found in {contracts_folder} . Reconstructing code from AST.")
-                pass
+        # Get the source code for the given file_id
+        source_code = list(Mapper._read_from_json_string(meta_data_json, "sources").items())[instruction['file_id']][1]['content']
+        snippet = Mapper._read_snippet_from_string(source_code, instruction['offset'], instruction['length'])
+        return MapperResult(contracts_key, snippet['code'], snippet['line'])
 
-        # Get Function details for the instruction
-        ast_json = Mapper._read_from_json_file(combined_json_path, f"sources.{sources_key}.AST")
-        function_node = Mapper._ast_node_from_instruction(ast_json, instruction)
-
-        # Otherwise we reconstruct the function
-        _, _, file_id = Mapper._parse_function_node(function_node)
-        file_node = Mapper._file_node_by_index(combined_json_path, int(file_id))
-        return MapperResult(
-            file=Mapper._file_location_from_file_node(file_node),
-            code=Mapper._reconstruct_code_from_ast(function_node['expression']),
-            line=0  # Set to 0. We don't have the source code so we cannot calculate the line
-        )
 
     @staticmethod
     def _read_compiler_version(combined_json_path: str) -> str:
@@ -194,29 +177,6 @@ class Mapper:
             raise ValueError(f"No contract found for name {contract_name} in {combined_json_path}.")
         return matches[0][0]
 
-    @staticmethod
-    def _source_key_for_contract_name(combined_json_path: str, contract_name: str) -> str:
-        """
-        Finds the source file key in the combined JSON for a given contract name.
-
-        Args:
-            combined_json_path (str): Path to the combined JSON output from the Solidity compiler.
-            contract_name (str): Name of the contract to find the source for.
-
-        Returns:
-            str: The source file key as it appears in the combined JSON.
-
-        Raises:
-            ValueError: If multiple sources match the name or if no source is found.
-        """
-        sources = Mapper._read_from_json_file(combined_json_path, "sources")
-        matches = Mapper._contract_name_matches(contract_name, sources.items())
-        if len(matches) > 1:
-            raise ValueError(
-                f"Multiple possible sources found for name {contract_name}: {list(map(lambda x: x[0], matches))}")
-        if len(matches) == 0:
-            raise ValueError(f"No contract found for name {contract_name} in {combined_json_path})")
-        return matches[0][0]
 
     @staticmethod
     def _contract_name_matches(contract_name: str, options) -> list[tuple[str, str]]:
@@ -237,54 +197,6 @@ class Mapper:
         matches = list(filter(lambda x: re.search(regex, x[0], re.IGNORECASE) is not None, options))
         return matches
 
-    @staticmethod
-    def _construct_contract_path(file_location: str) -> str:
-        """
-        Constructs an absolute file path for a contract based on its file location.
-
-        Args:
-            file_location (str): Relative or partial path to the contract file.
-
-        Returns:
-            str: The absolute path to the contract file.
-        """
-        dir_path = Path(os.path.dirname(__file__))
-        file_location_path = Path(file_location)
-        full_path = str(dir_path / ".." / file_location_path)
-        return full_path
-
-    @staticmethod
-    def _file_node_by_index(json_file_path: str, file_id: int) -> tuple[str, dict]:
-        """
-        Retrieves a file node from the combined JSON by its file index.
-
-        Args:
-            json_file_path (str): Path to the combined JSON output from the Solidity compiler.
-            file_id (int): Index of the file to retrieve.
-
-        Returns:
-            tuple: A (key, value) pair representing the file node.
-        """
-        return list(Mapper._read_from_json_file(json_file_path, "sources").items())[file_id]
-
-    @staticmethod
-    def _file_location_from_file_node(file_node: tuple[str, dict]) -> str:
-        """
-        Extracts the absolute path from a file node in the combined JSON.
-
-        Args:
-            file_node (dict): A file node from the combined JSON.
-
-        Returns:
-            str: The absolute path of the file.
-
-        Raises:
-            ValueError: If the file node does not contain an absolute path.
-        """
-        file_location = file_node[1]["AST"]["absolutePath"]
-        if file_location is None:
-            raise ValueError("No absolutePath in given json file.")
-        return file_location
 
     @staticmethod
     def _parse_function_node(function_node: dict) -> tuple[str, str, str]:
@@ -310,9 +222,9 @@ class Mapper:
         return parts
 
     @staticmethod
-    def _read_snippet_from_file(file_path: str | Path, start: int, length: int) -> dict[str, int | str] | None:
+    def _read_snippet_from_string(sting_content: str, start: int, length: int) -> dict[str, int | str] | None:
         """
-        Reads a specific code snippet from a file based on character offsets.
+        Reads a specific snippet from a string based on character offsets.
 
         Args:
             file_path (str or Path): Path to the source file to read from.
@@ -325,186 +237,21 @@ class Mapper:
                 - 'code': The extracted code snippet (str)
                 - 'line': The line number (int)
 
-        Raises:
-            FileNotFoundError: If the specified file does not exist.
         """
-        if not os.path.isfile(file_path):
-            raise FileNotFoundError(f"File not found: {file_path}")
 
-        encoding = from_path(file_path).best().encoding
-        
-        with open(file_path, 'rb') as file:
-            # Read the portion before the start position and count newlines
-            head = file.read(start)
-            newline_count = head.count(b'\n')
-            
-            # Read the substring from the start position
-            substring = file.read(length)
 
-        
+        # Read the portion before the start position and count newlines
+        head = sting_content[:start]
+        newline_count = head.count('\n')
+
+        # Read the substring from the start position
+        substring = sting_content[start: start + length]
+
         return {
-            'file': str(file_path),
-            'code': str(substring.decode(encoding)),
+            'file': "",
+            'code': substring,
             'line': newline_count + 1,  # +1 because line numbers are 1-based
         }
-
-    @staticmethod
-    def _read_snippet_from_source_code(function_node: dict, json_file_path: str, source_files_path: str) -> dict:
-        """
-        Reads a code snippet from source files based on a function node's location.
-
-        Args:
-            function_node (dict): An AST node containing source location information.
-            json_file_path (str): Path to the combined JSON output from the Solidity compiler.
-            source_files_path (str): Path to the directory containing source files.
-
-        Returns:
-            dict: A dictionary containing:
-                - 'file': The source file path (str)
-                - 'code': The extracted code snippet (str)
-                - 'line': The line number (int)
-        """
-        # Read the source to get the position of the statement described in the function node
-        start, length, file_id = Mapper._parse_function_node(function_node)
-        file_node = Mapper._file_node_by_index(json_file_path, int(file_id))
-
-        # Get the file (location) for the given file_id
-        file_location = Mapper._file_location_from_file_node(file_node)
-        source_file = Mapper._merge_paths(source_files_path, file_location)
-
-        return Mapper._read_snippet_from_file(source_file, int(start), int(length))
-
-    @staticmethod
-    def _merge_paths(path1: str | Path, path2: str | Path) -> Path:
-        """
-        Intelligently merges two paths, handling overlaps.
-
-        This method attempts to find where the paths might overlap and create
-        a sensible merged path rather than simply appending one to the other.
-
-        Args:
-            path1 (str or Path): The first path.
-            path2 (str or Path): The second path.
-
-        Returns:
-            Path: A merged path object.
-        """
-        p1_parts = Path(path1).parts
-        p2_parts = Path(path2).parts
-
-        # Find the overlap point
-        for i in range(len(p1_parts)):
-            if str(p1_parts[i:]).lower() == str(p2_parts[:len(p1_parts[i:])]).lower():
-                merged = Path(*p1_parts[:i], *p2_parts)
-                return merged
-
-        # If no overlap, just join normally
-        return Path(path1) / Path(path2)
-
-    @staticmethod
-    def _reconstruct_code_from_ast(node: dict) -> str:
-        """
-        Reconstructs Solidity source code from an AST node without access to the original source.
-
-        This function generates a code representation based solely on the AST structure.
-        The reconstruction may not match the original formatting but will be functionally
-        equivalent.
-
-        Args:
-            node (dict): The AST node to reconstruct code from.
-
-        Returns:
-            str: The reconstructed Solidity code fragment.
-
-        Raises:
-            ValueError: If the node type is unsupported or required information is missing.
-        """
-        reconstructor = SolidityASTReconstructor()
-        return reconstructor.reconstruct(node)
-
-    @staticmethod
-    def _ast_node_from_instruction(ast_json, source_location):
-        """
-        Finds the smallest AST node that fully contains the given source location.
-
-        This function traverses the Solidity AST (Abstract Syntax Tree) to locate the node
-        whose source range fully contains the given instruction source location, and whose
-        source range is the smallest among all such matches (i.e., the most specific node).
-
-        This is useful for mapping EVM instructions (via source maps) back to the most
-        relevant Solidity source construct, such as a statement or expression.
-
-        Args:
-            ast_json (dict): The Solidity AST as a nested dictionary, typically obtained
-                             from the Solidity compiler's JSON output.
-            source_location (dict): A dictionary with the source mapping information for
-                                    the instruction. Expected keys:
-                - 'offset' (int): Starting character offset in the source file.
-                - 'length' (int): Length of the source range in characters.
-                - 'file_id' (int): ID of the source file (used for multi-file inputs).
-
-        Returns:
-            dict: The AST node (as a dictionary) that fully contains the given source location
-                  and has the smallest source range.
-
-        Raises:
-            ValueError: If no matching AST node is found that contains the provided source location.
-
-        Example:
-            source_location = {'offset': 120, 'length': 8, 'file_id': 0}
-            node = Mapper._ast_node_from_instruction(ast_json, source_location)
-            print(node['nodeType'])  # e.g., 'ExpressionStatement'
-        """
-        target_start = source_location['offset']
-        target_length = source_location['length']
-        target_file_id = source_location['file_id']
-        target_end = target_start + target_length
-
-        # Track the smallest containing node
-        best_match = None
-        smallest_range = float('inf')  # Initialize with infinity
-
-        # Function to recursively search through AST nodes
-        def search_node(node):
-            nonlocal best_match, smallest_range, target_file_id, target_start, target_end
-
-            # Check if this node has source location
-            if 'src' in node:
-                src_parts = node['src'].split(':')
-                node_start = int(src_parts[0])
-                node_length = int(src_parts[1])
-                node_file_id = int(src_parts[2])
-                node_end = node_start + node_length
-
-                # Check if this node contains our target location
-                if node_file_id == target_file_id:
-
-                    # If target is within the node 
-                    # We dont handle the case where the node is fully contained in the target
-                    if node_start <= target_start <= target_end <= node_end:
-                        print(f"full: {node['nodeType']}")
-                        if node_length < smallest_range:
-                            best_match = node
-                            smallest_range = node_length
-
-
-                    # Always continue searching children, even if we found a match
-                    for key, value in node.items():
-                        if isinstance(value, dict):
-                            search_node(value)
-                        elif isinstance(value, list):
-                            for item in value:
-                                if isinstance(item, dict):
-                                    search_node(item)
-
-        # Start search from the root
-        search_node(ast_json)
-
-        if best_match is None:
-            raise ValueError(f"Could not find node for instruction at offset {target_start} in AST")
-
-        return best_match
-
 
 
     @staticmethod
@@ -665,6 +412,15 @@ class Mapper:
             'jump': result['jump'],
             'modifiers': result['modifiers']
         }
+
+    @staticmethod
+    def _read_from_json_string(json_str:str, item_path: str):
+        objects = ijson.items(ijson.parse(json_str), item_path)
+        try:
+            return next(objects)
+        except StopIteration:
+            raise KeyError(f"Path '{item_path}' not found in JSON string '{json_str}'")
+
 
     @staticmethod
     def _read_from_json_file(file_path, item_path: str):
