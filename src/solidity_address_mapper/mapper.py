@@ -53,8 +53,7 @@ class Mapper:
     def map_hex_address(
             compiler_output_json: str,
             address_hex: str,
-            contract_name: str,
-            contracts_folder: str = None) \
+            contract_name: str) \
             -> MapperResult:
         """
                 Maps a hexadecimal address to its corresponding source code location.
