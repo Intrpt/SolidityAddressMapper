@@ -1,5 +1,6 @@
 import os
 import re
+import io
 from pathlib import Path
 
 import ijson
@@ -414,7 +415,8 @@ class Mapper:
 
     @staticmethod
     def _read_from_json_string(json_str:str, item_path: str):
-        objects = ijson.items(ijson.parse(json_str), item_path)
+        byte_stream = io.BytesIO(json_str.encode('utf-8'))
+        objects = ijson.items(ijson.parse(byte_stream), item_path)
         try:
             return next(objects)
         except StopIteration:
