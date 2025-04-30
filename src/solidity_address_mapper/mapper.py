@@ -239,17 +239,11 @@ class Mapper:
 
         """
 
-
-        # Read the portion before the start position and count newlines
-        head = sting_content[:start]
-        newline_count = head.count('\n')
-
-        # Read the substring from the start position
-        substring = sting_content[start: start + length]
+        newline_count = sting_content[:start].count('\n')
+        snippet = sting_content[start: start + length]
 
         return {
-            'file': "",
-            'code': substring,
+            'code': snippet,
             'line': newline_count + 1,  # +1 because line numbers are 1-based
         }
 
