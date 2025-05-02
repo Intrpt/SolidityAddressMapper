@@ -349,9 +349,18 @@ class Mapper:
             if not remaining:
                 break  # All fields are populated
 
-
-        if any(value is None for value in result.values()):
-            raise ValueError(f"Incomplete source map entry at index {instruction_index}")
+        if result['file_id'] is None:
+            raise ValueError(f"Could not find file_id for instruction index {instruction_index}. There is an issue with the source map.")
+        elif result['offset'] is None:
+            raise ValueError(f"Could not find offset for instruction index {instruction_index}. There is an issue with the source map.")
+        elif result['length'] is None:
+            raise ValueError(f"Could not find length for instruction index {instruction_index}. There is an issue with the source map.")
+        elif result['jump'] is None:
+            # We dont need to raise an error here, because we dont need to know the jump type
+            print(f"INFO: Could not find jump for instruction index {instruction_index}")
+        elif result['modifiers'] is None:
+            # We dont need to raise an error here, because we dont need to know the modifier depth
+            print(f"INFO: Could not find modifiers for instruction index {instruction_index}")
 
         return {
             'offset': result['offset'],
