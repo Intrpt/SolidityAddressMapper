@@ -135,23 +135,6 @@ class Mapper:
         snippet = Mapper._read_snippet_from_string(source_code, instruction['offset'], instruction['length'])
         return MapperResult(contracts_key, snippet['code'], snippet['line'])
 
-
-    @staticmethod
-    def _read_compiler_version(combined_json_path: str) -> str:
-        """
-        Reads the Solidity compiler version from the combined JSON file.
-
-        Args:
-            combined_json_path (str): Path to the combined JSON output from the Solidity compiler.
-
-        Returns:
-            str: The compiler version string (e.g., "0.8.0") or "0.0.0" if not found.
-        """
-        e = Mapper._read_from_json_file(combined_json_path, "")
-        if "version" not in e:
-            return "0.0.0"
-        return e["version"]
-
     @staticmethod
     def _contract_key_for_contract_name(combined_json_path: str, contract_name: str) -> str:
         """
@@ -176,7 +159,6 @@ class Mapper:
             raise ValueError(f"No contract found for name {contract_name} in {combined_json_path}.")
         return matches[0][0]
 
-
     @staticmethod
     def _contract_name_matches(contract_name: str, options) -> list[tuple[str, str]]:
         """
@@ -195,30 +177,6 @@ class Mapper:
         regex = f"(^|[\\/]){contract_name}.*"
         matches = list(filter(lambda x: re.search(regex, x[0], re.IGNORECASE) is not None, options))
         return matches
-
-
-    @staticmethod
-    def _parse_function_node(function_node: dict) -> tuple[str, str, str]:
-        """
-        Parses the source location information from a function node.
-
-        Args:
-            function_node (dict): An AST node representing a function.
-
-        Returns:
-            tuple: A tuple of (offset, length, file_id) extracted from the node's 'src' attribute.
-        """
-        src = function_node['src']
-
-        if not src:
-            raise ValueError("Could not calculate line. No src attribute for given function node.")
-
-        parts = src.split(':')
-        if len(parts) != 3:
-            raise ValueError(
-                "Could not calculate line. Invalid src attribute for given function node. Expected format: offset:length:file_id")
-
-        return parts
 
     @staticmethod
     def _read_snippet_from_string(sting_content: str, start: int, length: int) -> dict[str, int | str] | None:
@@ -245,7 +203,6 @@ class Mapper:
             'code': snippet,
             'line': newline_count + 1,  # +1 because line numbers are 1-based
         }
-
 
     @staticmethod
     def _instruction_index_from_hex_address(pc: int, bytecode: str) -> int:
@@ -305,8 +262,6 @@ class Mapper:
                 break
 
         return instruction_index
-
-
 
     @staticmethod
     def _instruction_from_instruction_index(srcmap, instruction_index):
@@ -414,7 +369,6 @@ class Mapper:
             return next(objects)
         except StopIteration:
             raise KeyError(f"Path '{item_path}' not found in JSON string '{json_str}'")
-
 
     @staticmethod
     def _read_from_json_file(file_path, item_path: str):
