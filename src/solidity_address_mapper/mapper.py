@@ -110,9 +110,9 @@ class Mapper:
 
         #Verify compiler version
         compiler_version = Mapper._read_from_json_string(meta_data_json, "compiler.version")
-        if compiler_version < "0.6.0":
-            print(f"WARNING: Unsupported Compiler Version {Mapper._read_compiler_version(compiler_output_json)}. "
-                  "Please use a version >= 0.6.0")
+        if compiler_version < "0.5.17":
+            print(f"WARNING: The contract has been compiled using compiler version {compiler_version}. "
+                  "The mapper has not been tested with this version. ")
 
 
         # Map hex address to instruction index
