@@ -30,13 +30,10 @@
     "outputSelection": {
       "*": {
         "": [
-          "*",
-          "ast",
-          "legacyAST"
+          "*"
         ],
         "*": [
-          "*",
-          "evm.bytecode.generatedSources"
+          "*"
         ]
       }
     }
