@@ -4,7 +4,6 @@ import io
 from pathlib import Path
 
 import ijson
-from charset_normalizer import from_path
 
 
 class MapperResult:
