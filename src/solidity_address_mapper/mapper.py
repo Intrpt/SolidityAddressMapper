@@ -102,7 +102,7 @@ class Mapper:
             print(f"WARNING: Using non-utf-8 encoding. This might cause issues. (Found: {encoding})")
 
 
-        address_int = int(address_hex, 16)
+        address_dec = int(address_hex, 16)
         contracts_key = Mapper._contract_key_for_contract_name(compiler_output_json, contract_name)
         if contracts_key == contract_name:
             print("WARNING: contract file name is equal to contract name, likely you have used the solidity file name as contract name.")
@@ -117,7 +117,7 @@ class Mapper:
 
         # Map hex address to instruction index
         bin_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contracts_key}.{contract_name}.evm.deployedBytecode.object")
-        instruction_index = Mapper._instruction_index_from_hex_address(address_int, bin_runtime)
+        instruction_index = Mapper._instruction_index_from_hex_address(address_dec, bin_runtime)
         del bin_runtime # Free memory
         if instruction_index == 0:
             raise ValueError(f"Could not find hex address {address_hex} in binary runtime")
