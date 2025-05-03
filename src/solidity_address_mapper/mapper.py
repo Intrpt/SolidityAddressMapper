@@ -59,99 +59,124 @@ class Mapper:
         """
                 Maps a hexadecimal address to its corresponding source code location.
 
-                This method takes a hex address from compiled EVM bytecode and locates the
+                This method takes a hex address from compiled EVM deployed runtime bytecode and locates the
                 corresponding source code in the original Solidity files. It works by analyzing
-                the compiler output to find the exact instruction, statement, or expression
-                that corresponds to the given address.
+                the compiler output to find the exact instruction that corresponds to the given address.
 
                 Args:
                     compiler_output_json (str): Path to the JSON output from the Solidity compiler.
                     address_hex (str): Hexadecimal address to map (can handle both with and without '0x' prefix).
                     contract_name (str): Name of the contract containing the address.
-                    contracts_folder (str, optional): Path to the folder containing source contracts.
-                                                     If provided, enables direct source reading.
 
                 Returns:
                     MapperResult: Object containing file path, code snippet, and line number.
-                                  If no source code is found, the line number will be set to 0.
-
-                Raises:
-                    ValueError: If the hex address cannot be found in the binary runtime,
-                                if no instruction is found for the index, or if the contract
-                                cannot be found.
-                    FileNotFoundError: If the specified JSON file does not exist.
-                    KeyError: If the compiler_output_json file does not contain the expected keys.
+                                  In the event of an error, the file path will be set to the contract name.
+                                  The code snippet signifies the error message and the line number will be designated as 0.
 
 
                 Example:
                     ```python
                     result = Mapper.map_hex_address(
-                        "build/compiler_output_json.json",
+                        "build/mycontract_compiled.json",
                         "0xa1b2c3",
-                        "MyContract",
-                        "../contracts/"
+                        "MyContract"
                     )
                     print(f"Address maps to: {result}")
                     ```
                 """
-
-        if not os.path.isfile(compiler_output_json):
-            raise FileNotFoundError(f"compiler_output_json not found: {compiler_output_json}")
-
-        address_dec = int(address_hex, 16)
-        contracts_key = Mapper._contract_key_for_contract_name(compiler_output_json, contract_name)
-        if contracts_key == contract_name:
-            print("WARNING: contract file name is equal to contract name, likely you have used the solidity file name as contract name.")
-        meta_data_json = Mapper._read_from_json_file(compiler_output_json,f"contracts.{contracts_key}.{contract_name}.metadata")
-
-        #Verify compiler version
-        compiler_version = Mapper._read_from_json_string(meta_data_json, "compiler.version")
-        if compiler_version < "0.5.17":
-            print(f"WARNING: The contract has been compiled using compiler version {compiler_version}. "
-                  "The mapper has not been tested with this version. ")
-
-
-        # Map hex address to instruction index
-        bin_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contracts_key}.{contract_name}.evm.deployedBytecode.object")
-        instruction_index = Mapper._instruction_index_from_hex_address(address_dec, bin_runtime)
-        del bin_runtime # Free memory
-        if instruction_index == 0:
-            raise ValueError(f"Could not find instruction for index {instruction_index} in deployedBytecode.object."
-                "This may happen for an invalid hex address.")
-
-        # Get instruction for given instruction index
-        srcmap_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contracts_key}.{contract_name}.evm.deployedBytecode.sourceMap")
         try:
-            instruction = Mapper._instruction_from_instruction_index(srcmap_runtime, instruction_index)
-        except ValueError as ex:
-            return MapperResult(
-                contracts_key, ex.__str__(),0)
 
-        del srcmap_runtime # Free memory
-        if instruction is None:
-            raise ValueError(f"Could not find instruction for index {instruction_index} in source map."
-                "This may happen for an invalid hex address.")
+            if not os.path.isfile(compiler_output_json):
+                raise FileNotFoundError(f"compiler_output_json not found: {compiler_output_json}")
 
-        if instruction['file_id'] == -1:
-            raise ValueError("instruction is not associated with any particular source file. "
-                "This may happen for bytecode sections stemming from compiler-generated inline assembly statements.")
+            address_dec = int(address_hex, 16)
+            contracts_key = Mapper._contract_key_for_contract_name(compiler_output_json, contract_name)
+            if contracts_key == contract_name:
+                print("WARNING: contract file name is equal to contract name, likely you have used the solidity file name as contract name.")
+            meta_data_json = Mapper._read_from_json_file(compiler_output_json,f"contracts.{contracts_key}.{contract_name}.metadata")
 
-        # Get the source code for the given file_id
+            #Verify compiler version
+            compiler_version = Mapper._read_from_json_string(meta_data_json, "compiler.version")
+            if compiler_version < "0.5.17":
+                print(f"WARNING: The contract has been compiled using compiler version {compiler_version}. "
+                      "The mapper has not been tested with this version. ")
+
+
+            # Map hex address to instruction index
+            bin_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contracts_key}.{contract_name}.evm.deployedBytecode.object")
+            instruction_index = Mapper._instruction_index_from_hex_address(address_dec, bin_runtime)
+            del bin_runtime # Free memory
+            if instruction_index == 0:
+                raise ValueError(f"Could not find instruction for index {instruction_index} in deployedBytecode.object."
+                    "This may happen for an invalid hex address.")
+
+            # Get instruction for given instruction index
+            srcmap_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contracts_key}.{contract_name}.evm.deployedBytecode.sourceMap")
+            try:
+                instruction = Mapper._instruction_from_instruction_index(srcmap_runtime, instruction_index)
+            except ValueError as ex:
+                return MapperResult(
+                    contracts_key, ex.__str__(),0)
+
+            del srcmap_runtime # Free memory
+            if instruction is None:
+                raise ValueError(f"Could not find instruction for index {instruction_index} in source map."
+                    "This may happen for an invalid hex address.")
+
+            if instruction['file_id'] == -1:
+                raise ValueError("instruction is not associated with any particular source file. "
+                    "This may happen for bytecode sections stemming from compiler-generated inline assembly statements.")
+
+            snippet = Mapper._source_code_from_instruction(
+                compiler_output_json=compiler_output_json,
+                instruction=instruction,
+                meta_data_json=meta_data_json
+            )
+
+            return MapperResult(contracts_key, snippet['code'], snippet['line'])
+        except Exception as ex:
+            return MapperResult(contract_name, ex.__str__(), 0)
+
+    @staticmethod
+    def _source_code_from_instruction(compiler_output_json:str ,instruction: dict,meta_data_json: str):
+        """
+        Extracts and maps a specific segment of source code based on instruction details, compiler output, and metadata.
+
+        Parameters:
+        compiler_output_json: str
+            A JSON file path of the compiler's output, containing source IDs and their metadata mappings.
+        instruction: dict
+            A dictionary containing specific details (file_id, offset, length) to reference the required code snippet.
+        meta_data_json: str
+            A JSON string of metadata that includes mapping and potentially literal content of source files.
+
+        Returns:
+        str
+            A specific snippet of source code according to the provided instruction.
+
+        Raises:
+        ValueError
+            - If the given file_id in the instruction references a compiler-internal file that cannot be mapped.
+            - If the referenced source in metadata does not include actual code content.
+        """
         try:
-            source = next(filter(lambda x: x[1]['id'] == instruction["file_id"], Mapper._read_from_json_file(compiler_output_json, "sources").items()))
+            source = next(filter(lambda x: x[1]['id'] == instruction["file_id"],
+                                 Mapper._read_from_json_file(compiler_output_json, "sources").items()))
         except StopIteration:
-            raise ValueError(f"The address references a compiler-internal file (file id: {instruction['file_id']}) and cannot be mapped to the source code.")
-        
-        source_name = source[0]
-        source = next(filter(lambda x: x[0] == source_name, Mapper._read_from_json_string(meta_data_json, "sources").items()))
-        if not 'content' in source[1]:
-            raise ValueError(f"The metadata of source '{source_name}' doesnt include the source code. Did you set useLiteralContent true?")
+            raise ValueError(
+                f"The address references a compiler-internal file (file id: {instruction['file_id']}) and cannot be mapped to the source code.")
 
-        snippet = Mapper._read_snippet_from_string(
+        source_name = source[0]
+        source = next(
+            filter(lambda x: x[0] == source_name, Mapper._read_from_json_string(meta_data_json, "sources").items()))
+        if not 'content' in source[1]:
+            raise ValueError(
+                f"The metadata of source '{source_name}' doesnt include the source code. Did you set useLiteralContent true?")
+
+        return Mapper._read_snippet_from_string(
             string_content=source[1]['content'],
             start=instruction['offset'],
             length=instruction['length'])
-        return MapperResult(contracts_key, snippet['code'], snippet['line'])
 
     @staticmethod
     def _contract_key_for_contract_name(combined_json_path: str, contract_name: str) -> str:
