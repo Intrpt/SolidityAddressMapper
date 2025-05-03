@@ -5,7 +5,6 @@ from pathlib import Path
 
 import ijson
 
-
 class MapperResult:
     """
     Represents the result of a mapping operation from hex address to source code.
@@ -40,6 +39,8 @@ class MapperResult:
             str: A formatted string showing file path, line number, and code.
         """
         return f"{self.file}:{self.line}:{self.code}"
+
+
 
 class Mapper:
     """
@@ -196,7 +197,7 @@ class Mapper:
         return matches
 
     @staticmethod
-    def _read_snippet_from_string(sting_content: str, start: int, length: int) -> dict[str, int | str] | None:
+    def _read_snippet_from_string(string_content: str, start: int, length: int) -> dict[str, int | str] | None:
         """
         Reads a specific snippet from a string based on character offsets.
 
@@ -213,8 +214,8 @@ class Mapper:
 
         """
 
-        newline_count = sting_content[:start].count('\n')
-        snippet = sting_content[start: start + length]
+        newline_count = string_content[:start].count('\n')
+        snippet = string_content[start: start + length]
 
         return {
             'code': snippet,
@@ -323,7 +324,7 @@ class Mapper:
             'offset': None, # starting character offset in the source file
             'length': None, # number of characters this instruction corresponds to
             'file_id': None, # index of the source file
-            'jump': None, # type of jump (e.g., i = into function, o = out of function, -1 = no jump)
+            'jump': None, # type of jump (e.g., i = into function, o = out of function, - = no jump)
             'modifiers': None # how deep into modifier context the instruction is
         }
 
