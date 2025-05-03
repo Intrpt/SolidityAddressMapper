@@ -115,19 +115,41 @@ class Mapper:
         instruction_index = Mapper._instruction_index_from_hex_address(address_dec, bin_runtime)
         del bin_runtime # Free memory
         if instruction_index == 0:
-            raise ValueError(f"Could not find hex address {address_hex} in binary runtime")
+            raise ValueError(f"Could not find instruction for index {instruction_index} in deployedBytecode.object."
+                "This may happen for an invalid hex address.")
 
         # Get instruction for given instruction index
         srcmap_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contracts_key}.{contract_name}.evm.deployedBytecode.sourceMap")
-        instruction = Mapper._instruction_from_instruction_index(srcmap_runtime, instruction_index)
+        try:
+            instruction = Mapper._instruction_from_instruction_index(srcmap_runtime, instruction_index)
+        except ValueError as ex:
+            return MapperResult(
+                contracts_key, ex.__str__(),0)
+
         del srcmap_runtime # Free memory
         if instruction is None:
-            raise ValueError(f"Could not find instruction for index {instruction_index} in source map")
+            raise ValueError(f"Could not find instruction for index {instruction_index} in source map."
+                "This may happen for an invalid hex address.")
 
+        if instruction['file_id'] == -1:
+            raise ValueError("instruction is not associated with any particular source file. "
+                "This may happen for bytecode sections stemming from compiler-generated inline assembly statements.")
 
         # Get the source code for the given file_id
-        source_code = list(Mapper._read_from_json_string(meta_data_json, "sources").items())[instruction['file_id']][1]['content']
-        snippet = Mapper._read_snippet_from_string(source_code, instruction['offset'], instruction['length'])
+        try:
+            source = next(filter(lambda x: x[1]['id'] == instruction["file_id"], Mapper._read_from_json_file(compiler_output_json, "sources").items()))
+        except StopIteration:
+            raise ValueError(f"The address references a compiler-internal file (file id: {instruction['file_id']}) and cannot be mapped to the source code.")
+        
+        source_name = source[0]
+        source = next(filter(lambda x: x[0] == source_name, Mapper._read_from_json_string(meta_data_json, "sources").items()))
+        if not 'content' in source[1]:
+            raise ValueError(f"The metadata of source '{source_name}' doesnt include the source code. Did you set useLiteralContent true?")
+
+        snippet = Mapper._read_snippet_from_string(
+            string_content=source[1]['content'],
+            start=instruction['offset'],
+            length=instruction['length'])
         return MapperResult(contracts_key, snippet['code'], snippet['line'])
 
     @staticmethod
