@@ -35,8 +35,8 @@ Mapper.map_hex_address(
 
 
 
-The result is of class ``MapperResult`` containing `line`, `code` and `file`. Example: `MapperResult(file="contract.sol", code="uint256 c = a * b", line=17)`
-
+The result is of class ``MapperResult`` containing `line`, `code` and `file`. Example: `MapperResult(file="contract.sol", code="uint256 c = a * b", line=17)`.
+In the event of an error, the file path will be set to the contract name, the code snippet signifies the error message and the line number will be designated as 0.
 
 ### Example compiler-config
 The following example shows the minimal compiler_config.json to generate the required sections. You can find more example compiler configurations for different compiler versions in the tests folder.

@@ -70,8 +70,8 @@ class Mapper:
 
                 Returns:
                     MapperResult: Object containing file path, code snippet, and line number.
-                                  In the event of an error, the file path will be set to the contract name.
-                                  The code snippet signifies the error message and the line number will be designated as 0.
+                                  In the event of an error, the file path will be set to the contract name,
+                                  the code snippet signifies the error message and the line number will be designated as 0.
 
 
                 Example:
