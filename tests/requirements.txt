@@ -1,1 +1,2 @@
 pytest==8.3.5
+pytest-csv-params==1.2.0
