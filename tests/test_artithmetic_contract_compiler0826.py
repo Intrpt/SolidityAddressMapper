@@ -140,14 +140,6 @@ class TestClass:
                 instruction_index = Mapper._instruction_index_from_hex_address(i, self.bin_runtime)
                 assert instruction_index == idx, f"expected {idx} but got {instruction_index}"
 
-    def test_last_instruction_before_return(self):
-        ''' Test last instruction before the return statement "div = b != 0 ? a / b : 0" in the ArtithmeticTestContract contract '''
-        result: MapperResult = Mapper.map_hex_address(
-            compiler_output_json="tests/compiler0826/compiled/ArtithmeticTestContract.json",
-            address_hex=hex(456),
-            contract_name="ArtithmeticTestContract")
-        self._assert_code_in_line(result, 'uint256 div = b != 0 ? a / b : 0', 7)
-
 
 
 

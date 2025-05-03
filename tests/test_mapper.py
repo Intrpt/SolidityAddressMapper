@@ -12,7 +12,14 @@ from solidity_address_mapper.mapper import Mapper, MapperResult
     id_col="id"
 )
 
-def test_mapper(compiler_output_json, address_hex, contract_name, filename, source_code, source_line, info):
+def test_mapper(
+        compiler_output_json: str,
+        address_hex: str,
+        contract_name: str,
+        filename: str,
+        source_code: str,
+        source_line: str,
+        info: str):
     result: MapperResult = Mapper.map_hex_address(
         compiler_output_json,
         address_hex,
