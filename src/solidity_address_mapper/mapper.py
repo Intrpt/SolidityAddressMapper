@@ -95,12 +95,7 @@ class Mapper:
                 """
 
         if not os.path.isfile(compiler_output_json):
-            raise FileNotFoundError(f"File not found: {compiler_output_json}")
-
-        encoding = from_path(compiler_output_json).best().encoding
-        if not "utf_8" in encoding and not "utf-8" in encoding and not "utf8" in encoding and not "ascii" in encoding:
-            print(f"WARNING: Using non-utf-8 encoding. This might cause issues. (Found: {encoding})")
-
+            raise FileNotFoundError(f"compiler_output_json not found: {compiler_output_json}")
 
         address_dec = int(address_hex, 16)
         contracts_key = Mapper._contract_key_for_contract_name(compiler_output_json, contract_name)
