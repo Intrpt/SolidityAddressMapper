@@ -1,0 +1,36 @@
+{
+  "language": "Solidity",
+  "settings": {
+    "debug": {
+      "revertStrings": "debug"
+    },
+    "optimizer": {
+      "enabled": false
+    },
+    "viaIR": false,
+    "evmVersion": "istanbul",
+    "metadata": {
+      "bytecodeHash": "none",
+      "useLiteralContent": true
+    },
+    "modelChecker": {
+      "engine": "none",
+      "timeout": 0
+    },
+    "outputSelection": {
+      "*": {
+        "": [
+          "*"
+        ],
+        "*": [
+          "*"
+        ]
+      }
+    }
+  },
+  "sources": {
+    "compiler076/SimpleDAO.sol": {
+      "content": "/*\n * @source: http://blockchain.unica.it/projects/ethereum-survey/attacks.html#simpledao\n * Upgraded from Solidity 0.4 to 0.7, vulnerability may no longer exist\n * @author: -\n * @vulnerable_at_lines: 21\n */\n\n// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.7.0;\n\ncontract SimpleDAO {\n  mapping (address => uint) public credit;\n\n  function donate(address to) public payable {\n    credit[to] += msg.value;\n  }\n\n  function withdraw(uint amount) public {\n    if (credit[msg.sender]>= amount) {\n      // <yes> <report> REENTRANCY\n      (bool res,) = msg.sender.call{value: amount}(\"\");\n      credit[msg.sender]-=amount;\n    }\n  }\n\n  function queryCredit(address to) public view returns (uint){\n    return credit[to];\n  }\n}\n"
+    }
+  }
+}

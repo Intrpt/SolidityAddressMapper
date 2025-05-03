@@ -1,0 +1,1 @@
+Install the tests requirements.txt and run the tests with `python -m pytest` from the Project root folder (not from the tests folder).

@@ -1,0 +1,36 @@
+{
+  "language": "Solidity",
+  "settings": {
+    "debug": {
+      "revertStrings": "debug"
+    },
+    "optimizer": {
+      "enabled": false
+    },
+    "viaIR": false,
+    "evmVersion": "istanbul",
+    "metadata": {
+      "bytecodeHash": "none",
+      "useLiteralContent": true
+    },
+    "modelChecker": {
+      "engine": "none",
+      "timeout": 0
+    },
+    "outputSelection": {
+      "*": {
+        "": [
+          "*"
+        ],
+        "*": [
+          "*"
+        ]
+      }
+    }
+  },
+  "sources": {
+    "compiler076/ReturnValue.sol": {
+      "content": "/*\n * @source: https://smartcontractsecurity.github.io/SWC-registry/docs/SWC-104#unchecked-return-valuesol\n * Upgraded from Solidity 0.4 to 0.7, vulnerability may no longer exist\n * @author: -\n * @vulnerable_at_lines: 20\n */\n\n// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.7.0;\n\ncontract ReturnValue {\n\n  function callchecked(address callee) public {\n    (bool success,) = callee.call(\"\");\n    require(success);\n  }\n\n  function callnotchecked(address callee) public {\n     // <yes> <report> UNCHECKED_LL_CALLS\n    callee.call(\"\");\n  }\n}\n"
+    }
+  }
+}

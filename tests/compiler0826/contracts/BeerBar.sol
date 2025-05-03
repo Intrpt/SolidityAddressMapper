@@ -19,8 +19,9 @@ contract BeerBar is IBeerBar, AccessControl {
     mapping(address => uint) orders;
 
 
-    constructor () public {
+    constructor () {
         _grantRole(OWNER, msg.sender);
+        _grantRole(0x0000000000000000000000000000000000000000000000000000000000000000, msg.sender);
     }
 
     // ROLES
