@@ -66,3 +66,10 @@ The following example shows the minimal compiler_config.json to generate the req
 
 ```
 
+## Project structure
+| Path                         | Explanation                                                            |
+|------------------------------|------------------------------------------------------------------------|
+| /                            | Readme, pyproject.toml (pytest config file)                            |
+| /src/solidity_address_mapper | Source code                                                            |
+| /tests                       | All files related to testing                                           |
+| /workdir                     | Collection of contracts and config files I keep for historical reasons |

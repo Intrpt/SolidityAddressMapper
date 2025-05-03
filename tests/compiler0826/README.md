@@ -1,1 +1,0 @@
-Install the tests requirements.txt and run the tests with `python -m pytest`
