@@ -4,7 +4,7 @@ The mapper accepts the solidity compiler output in standard JSON format and a he
 
 ## Requirements
 * Python 3
-* ijson 3.3.0 (used to parse large json files)
+* [ijson 3.3.0](https://github.com/ICRAR/ijson) (used to parse large json files)
 
 
 ## Installation:
@@ -40,7 +40,7 @@ In the event of an error, the file path will be set to the contract name, the co
 
 ### Example compiler-config
 The following example shows the minimal compiler_config.json to generate the required sections. You can find more example compiler configurations for different compiler versions in the tests folder.
-```
+```json
 {
   "language": "Solidity",
   "settings": {
