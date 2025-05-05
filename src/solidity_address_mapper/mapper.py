@@ -90,10 +90,11 @@ class Mapper:
                 raise FileNotFoundError(f"compiler_output_json not found: {compiler_output_json}")
 
             address_dec = int(address_hex, 16)
-            contracts_key = Mapper._contract_key_for_contract_name(compiler_output_json, contract_name)
-            if contracts_key == contract_name:
+            # contract node is the node representing the contract in the json file.
+            contract_node = Mapper._contract_key_for_contract_name(compiler_output_json, contract_name)
+            if contract_node == contract_name:
                 print("WARNING: contract file name is equal to contract name, likely you have used the solidity file name as contract name.")
-            meta_data_json = Mapper._read_from_json_file(compiler_output_json,f"contracts.{contracts_key}.{contract_name}.metadata")
+            meta_data_json = Mapper._read_from_json_file(compiler_output_json,f"contracts.{contract_node}.{contract_name}.metadata")
 
             #Verify compiler version
             compiler_version = Mapper._read_from_json_string(meta_data_json, "compiler.version")
@@ -103,7 +104,7 @@ class Mapper:
 
 
             # Map hex address to instruction index
-            bin_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contracts_key}.{contract_name}.evm.deployedBytecode.object")
+            bin_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contract_node}.{contract_name}.evm.deployedBytecode.object")
             instruction_index = Mapper._instruction_index_from_hex_address(address_dec, bin_runtime)
             del bin_runtime # Free memory
             if instruction_index == 0:
@@ -111,12 +112,12 @@ class Mapper:
                     "This may happen for an invalid hex address.")
 
             # Get instruction for given instruction index
-            srcmap_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contracts_key}.{contract_name}.evm.deployedBytecode.sourceMap")
+            srcmap_runtime = Mapper._read_from_json_file(compiler_output_json, f"contracts.{contract_node}.{contract_name}.evm.deployedBytecode.sourceMap")
             try:
                 instruction = Mapper._instruction_from_instruction_index(srcmap_runtime, instruction_index)
             except ValueError as ex:
                 return MapperResult(
-                    contracts_key, ex.__str__(),0)
+                    contract_node, ex.__str__(),0)
 
             del srcmap_runtime # Free memory
             if instruction is None:
