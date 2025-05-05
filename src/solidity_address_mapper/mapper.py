@@ -127,13 +127,11 @@ class Mapper:
                 raise ValueError("instruction is not associated with any particular source file. "
                     "This may happen for bytecode sections stemming from compiler-generated inline assembly statements.")
 
-            snippet = Mapper._source_code_from_instruction(
+            return Mapper._source_code_from_instruction(
                 compiler_output_json=compiler_output_json,
                 instruction=instruction,
                 meta_data_json=meta_data_json
             )
-
-            return MapperResult(contracts_key, snippet['code'], snippet['line'])
         except Exception as ex:
             return MapperResult(contract_name, ex.__str__(), 0)
 
@@ -152,7 +150,7 @@ class Mapper:
 
         Returns:
         str
-            A specific snippet of source code according to the provided instruction.
+            A specific snippet of source code according to the provided instruction in MapperResult format.
 
         Raises:
         ValueError
@@ -173,10 +171,12 @@ class Mapper:
             raise ValueError(
                 f"The metadata of source '{source_name}' doesnt include the source code. Did you set useLiteralContent true?")
 
-        return Mapper._read_snippet_from_string(
+        snippet = Mapper._read_snippet_from_string(
             string_content=source[1]['content'],
             start=instruction['offset'],
             length=instruction['length'])
+
+        return MapperResult(file=source_name, code=snippet['code'], line=snippet['line'])
 
     @staticmethod
     def _contract_key_for_contract_name(combined_json_path: str, contract_name: str) -> str:
