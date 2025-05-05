@@ -14,17 +14,17 @@ from solidity_address_mapper.mapper import Mapper, MapperResult
 
 def test_mapper(
         compiler_output_json: str,
-        address_hex: str,
+        contract_node: str,
         contract_name: str,
-        filename: str,
-        source_code: str,
+        address_hex: str,
         source_line: str,
-        info: str):
+        source_code: str
+):
     result: MapperResult = Mapper.map_hex_address(
         compiler_output_json,
         address_hex,
         contract_name)
     assert (result != None)
-    assert (result.file == filename)
+    assert (result.file == contract_node)
     assert (result.code == source_code.replace("\\r","\r").replace("\\n","\n"))
     assert (result.line == int(source_line))

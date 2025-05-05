@@ -1,0 +1,6 @@
+id,compiler_output_json,contract_node,contract_name
+EtherLotto InstrIdx 0.7.6,tests/compiler076/compiled/EtherLotto.json,compiler076/EtherLotto.sol,EtherLotto
+EtherLotto InstrIdx 0.6.12,tests/compiler0612/compiled/EtherLotto.json,compiler0612/contracts/EtherLotto.sol,EtherLotto
+EtherLotto InstrIdx 0.5.17,tests/compiler0517/compiled/EtherLotto.json,compiler0517/EtherLotto.sol,EtherLotto
+BeerBar InstrIdx 0.8.26,tests/compiler0826/compiled/BeerBar.json,contracts/BeerBar.sol,BeerBar
+ArithmeticTestContract InstrIdx 0.8.26,tests/compiler0826/compiled/ArtithmeticTestContract.json,ArtithmeticTestContract.sol,ArtithmeticTestContract
