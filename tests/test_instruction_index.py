@@ -195,13 +195,15 @@ def create_instruction_mapping(
         op = bytecode[i]
 
         if 0x60 <= op <= 0x7f:  # PUSH1-PUSH32
+            # Calculate the position (start, end) where the payload for the PUSH operation is located
             data_size = op - 0x5f
             start = i
             end = i + data_size  # inclusive range
             mapping.append((instruction_idx, (start, end)))
 
+            # Read the payload for the PUSH operation from the bytecode
             data_bytes = bytecode[i + 1:i + 1 + data_size]
-            # append zeros at the end of the string until its length is equal data_bytes
+            # append zero padding until its length is equal data_size
             data_bytes = data_bytes + b'\x00' * (data_size - len(data_bytes))
 
             formatted_data = format_push_data(data_bytes)
