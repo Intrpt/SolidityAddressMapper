@@ -39,8 +39,8 @@ opcode_map = {
         0x1c: "SHR",
         0x1d: "SAR",
 
-        # SHA3
-        0x20: "SHA3",
+        # KECCAK256
+        0x20: "KECCAK256",
 
         # Environmental Information
         0x30: "ADDRESS",
@@ -65,11 +65,13 @@ opcode_map = {
         0x41: "COINBASE",
         0x42: "TIMESTAMP",
         0x43: "NUMBER",
-        0x44: "DIFFICULTY",
+        0x44: "PREVRANDAO",
         0x45: "GASLIMIT",
         0x46: "CHAINID",
         0x47: "SELFBALANCE",
         0x48: "BASEFEE",
+        0x49: "BLOBHASH",
+        0x4A: "BLOBBASEFEE",
 
         # Stack, Memory, Storage and Flow Operations
         0x50: "POP",
