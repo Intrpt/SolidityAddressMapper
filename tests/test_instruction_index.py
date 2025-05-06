@@ -207,7 +207,7 @@ def create_instruction_mapping(
             i += 1 + data_size
         else:
             mapping.append((instruction_idx, (i, i)))
-            instructions += f"{opcode_map.get(op, f'DATA (0x{op:02x})')} "
+            instructions += f"{opcode_map.get(op, f'0x{op:0X}')} "
             i += 1
 
         instruction_idx += 1
