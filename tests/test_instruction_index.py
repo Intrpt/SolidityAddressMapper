@@ -201,6 +201,9 @@ def create_instruction_mapping(
             mapping.append((instruction_idx, (start, end)))
 
             data_bytes = bytecode[i + 1:i + 1 + data_size]
+            # append zeros at the end of the string until its length is equal data_bytes
+            data_bytes = data_bytes + b'\x00' * (data_size - len(data_bytes))
+
             formatted_data = format_push_data(data_bytes)
             instructions += f"{opcode_map[op]} {formatted_data} "
 
