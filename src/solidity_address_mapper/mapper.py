@@ -282,9 +282,6 @@ class Mapper:
             raise ValueError("Bytecode must be a valid hex string with an even number of characters")
 
 
-        if pc > len(bytecode_bytes):
-            raise ValueError(f"PC value {pc} is greater than the length of the bytecode {len(bytecode_bytes)}")
-
         # If the PC is at the beginning of the bytecode, return 0 as it indicates the first instruction
         if pc == 0:
             return 0
@@ -295,15 +292,22 @@ class Mapper:
         # Idea: Go byte by byte until we reach the given program counter (pc) or the end of the bytecode.
         # current_pc = current position (in bytes) as we walk through the bytecode
         # current_op = current opcode (in bytes) as we walk through the bytecode
+        # bytecode_length_with_padding = the length of the bytecode inclusive padding zeros
+        bytecode_length_with_padding = 0
         for current_pc, current_op in enumerate(bytecode_bytes):
             if push_data_bytes > 0:
                 push_data_bytes -= 1
             else:
                 instruction_index += 1
+                bytecode_length_with_padding += 1
                 if 0x60 <= current_op <= 0x7f:  # PUSH1 to PUSH32
                     push_data_bytes = current_op - 0x5f  # Calculate number of data bytes (0x60 - 0x5f = 1 (PUSH1))
+                    bytecode_length_with_padding += push_data_bytes
             if current_pc == pc:
                 break
+
+        if pc > bytecode_length_with_padding:
+            raise ValueError(f"PC value {pc} is greater than the length of the bytecode {bytecode_length_with_padding}")
 
         return instruction_index
 
