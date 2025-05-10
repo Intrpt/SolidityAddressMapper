@@ -43,9 +43,9 @@ def main():
     parser.add_argument('--optimizer-details-yul-stack-allocation', type=str_to_bool, help="Stack allocation in Yul optimizer. Optional. Default defined by solc.")
     parser.add_argument('--optimizer-details-yul-steps', type=str, help="Optimization step sequence for Yul optimizer. Optional. Default defined by solc.")
     
-    # Debugging flags
-    parser.add_argument('--debug-revertStrings', type=validate_revert_strings, help="How to treat revert (and require) reason strings. Optional. Default defined by solc.")
-    parser.add_argument('--debug-debugInfo', type=str, nargs='+', help="How much extra debug information to include in comments in the produced EVM assembly and Yul code Optional. Default defined by solc.")
+    # Debugging flags are not valid for 0.5.17
+    #parser.add_argument('--debug-revertStrings', type=validate_revert_strings, help="How to treat revert (and require) reason strings. Optional. Default defined by solc.")
+    #parser.add_argument('--debug-debugInfo', type=str, nargs='+', help="How much extra debug information to include in comments in the produced EVM assembly and Yul code Optional. Default defined by solc.")
     parser.add_argument('--metadata-appendCBOR', type=str_to_bool, help="The CBOR metadata is appended at the end of the bytecode by default. Optional. Default defined by solc.")
     parser.add_argument('--metadata-bytecodeHash', type=str_to_bool, help="Use the given hash method for the metadata hash that is appended to the bytecode. Optional. Default defined by solc.")
     #TODO: metadata-bytecodeHash arguments
@@ -59,8 +59,6 @@ def main():
         "language": "Solidity",
         "settings": {
             "evmVersion": args.evmVersion,
-            "remappings": args.remappings,
-            "viaIR": args.viaIR,
             "metadata": {
                 "useLiteralContent": True
             },
@@ -74,10 +72,18 @@ def main():
                 }
             },
             "optimizer": {},
-            "debug": {}
+            #"debug": {} #Debug is not valid for 0.5.17
         },
         "sources": {}
     }
+
+    # Add remappings if provided
+    if args.remappings:
+        result["settings"]["remappings"] = args.remappings
+
+    # Add the viaIR flag
+    if args.viaIR:
+        result["settings"]["viaIR"] = args.viaIR
     
     # Process each file path
     for file_path in args.sources:
@@ -120,10 +126,10 @@ def main():
     }
 
     # Add the debug settings
-    if args.debug_revertStrings is not None:
-        result["settings"]["debug"]["revertStrings"] = args.debug_revertStrings
-    if args.debug_debugInfo is not None:
-        result["settings"]["debug"]["debugInfo"] = args.debug_debugInfo
+    #if args.debug_revertStrings is not None:
+    #    result["settings"]["debug"]["revertStrings"] = args.debug_revertStrings
+    #if args.debug_debugInfo is not None:
+    #    result["settings"]["debug"]["debugInfo"] = args.debug_debugInfo
 
     # Add the metadata settings
     if args.metadata_appendCBOR is not None:
@@ -132,12 +138,15 @@ def main():
         result["settings"]["metadata"]["bytecodeHash"] = args.metadata_bytecodeHash
 
 
-    #with open("input.json", 'w') as f:
-    #    f.write(json.dumps(result, indent=4))
+    with open("input.json", 'w') as f:
+        f.write(json.dumps(result, indent=4))
+
+    # Check if we have to allow directories
+    directories = [os.path.abspath(file_path) for file_path in args.sources]
 
     # Run solc
     process = subprocess.Popen(
-        ['solc', '--standard-json'],
+        ['solc', '--allow-paths', ','.join(directories) , '--standard-json'],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
