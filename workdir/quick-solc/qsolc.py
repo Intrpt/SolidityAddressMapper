@@ -24,7 +24,7 @@ def main():
     parser.add_argument('-o', '--output', type=str, help="Output file path. If not provided, the output will be printed to stdout.")
     parser.add_argument('--remappings', nargs='+', type=str, help="List of remappings. Optional.")
 
-    parser.add_argument('--evmVersion', type=str, default="istanbul", help="Version of the EVM to compile for. Optional. Default: 'istanbul'.")
+    parser.add_argument('--evmVersion', type=str, help="Version of the EVM to compile for. Optional.")
     parser.add_argument('--viaIR', type=str_to_bool, default="false", help=" Change compilation pipeline to go through the Yul intermediate representation. Optional. Default: false.")
 
 
@@ -58,7 +58,6 @@ def main():
     result = {
         "language": "Solidity",
         "settings": {
-            "evmVersion": args.evmVersion,
             "metadata": {
                 "useLiteralContent": True
             },
@@ -85,6 +84,10 @@ def main():
     # Add the viaIR flag
     if args.viaIR:
         result["settings"]["viaIR"] = args.viaIR
+
+    # Add the evmVersion
+    if args.evmVersion is not None:
+        result["settings"]["evmVersion"] = args.evmVersion
     
     # Process each file path
     for file_path in args.sources:
