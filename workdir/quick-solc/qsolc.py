@@ -67,6 +67,7 @@ def main():
                     "*": [
                         "evm.deployedBytecode.sourceMap",
                         "evm.deployedBytecode.object",
+                        "evm.deployedBytecode.opcodes",
                         "metadata"
                     ]
                 }
