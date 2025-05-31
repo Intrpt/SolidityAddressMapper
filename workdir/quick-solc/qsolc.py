@@ -1,7 +1,10 @@
 import argparse
 import os
 import json
+import pathlib
+import re
 import subprocess
+from typing import Dict, Any, List, Tuple
 
 def str_to_bool(value):
     if value.lower() in {'true', '1', 'yes'}:
@@ -16,43 +19,91 @@ def validate_revert_strings(value):
         return value
     else:
         raise argparse.ArgumentTypeError(f"Invalid debug revertStrings value: {value}")
+    
+def update_nested_dict(d: Dict[str, Any], keys: List[str], value: Any, append_to_arrays: bool = False) -> Dict[str, Any]:
+    """
+    Update a nested dictionary with a value at the specified key path.
+    If append_to_arrays is True, append to existing arrays instead of overwriting them.
+    Returns a new dictionary with the updated structure.
+    """
+    if not keys:
+        if append_to_arrays and isinstance(d, list) and isinstance(value, list):
+            # Append to the existing array
+            d.extend(value)
+            return d
+        return value
+
+    current_key = keys[0]
+    
+    # Handle array indexing (e.g., key[0], key[1])
+    if current_key.endswith(']'):
+        base_key, index_str = current_key[:-1].split('[')
+        try:
+            index = int(index_str)
+        except ValueError:
+            raise ValueError(f"Invalid array index in key path: '{current_key}'.")
+        
+        if base_key not in d:
+            d[base_key] = []
+        elif not isinstance(d[base_key], list):
+            raise ValueError(f"Cannot index '{base_key}' as an array; it is not a list.")
+        
+        # Ensure the array is long enough
+        while len(d[base_key]) <= index:
+            d[base_key].append(None)
+        
+        if len(keys) == 1:
+            d[base_key][index] = value
+        else:
+            d[base_key][index] = update_nested_dict(
+                d[base_key][index] or {}, keys[1:], value, append_to_arrays
+            )
+        return d
+
+    # Handle regular dictionary keys
+    if len(keys) == 1:
+        if append_to_arrays and isinstance(d.get(current_key), list) and isinstance(value, list):
+            d[current_key].extend(value)
+        else:
+            d[current_key] = value
+    else:
+        if current_key not in d:
+            d[current_key] = {}
+        elif not isinstance(d[current_key], dict):
+            raise ValueError(f"Cannot set nested key '{keys[1]}' under '{current_key}'; it is not a dictionary.")
+        d[current_key] = update_nested_dict(d[current_key], keys[1:], value, append_to_arrays)
+    return d
+
+def parse_key_value_pair(arg: str) -> Tuple[List[str], Any]:
+    """Parse a single argument in the format 'key.path=value' into a key path and value."""
+    if '=' not in arg:
+        raise ValueError(f"Invalid argument format: '{arg}'. Expected 'key.path=value'.")
+    
+    key_path, value_str = arg.split('=', 1)  # Split on the first '=' only
+    if not key_path:
+        raise ValueError(f"Key path cannot be empty in argument: '{arg}'.")
+    
+    # Escape dots
+    key_path = key_path.replace('\\.', '__TEMP_DOT_E6C8ED1B-BA4A-43DB-A8DA-742800F8E099___')
+
+    keys = key_path.split('.')
+    try:
+        # Attempt to parse the value as JSON to support arrays, numbers, booleans, etc.
+        value = json.loads(value_str)
+    except json.JSONDecodeError:
+        # If parsing fails, treat the value as a string
+        value = value_str
+
+    # Restore escaped dots
+    keys = [key.replace('__TEMP_DOT_E6C8ED1B-BA4A-43DB-A8DA-742800F8E099___', '.') for key in keys]
+    return keys, value
 
 def main():
     parser = argparse.ArgumentParser(description="A script to process input flags.")
+    parser.add_argument("pairs", nargs='+', help="Key-value pairs in the format 'key.path=value'")
 
-    parser.add_argument('-s', '--sources', required=True, nargs='+', type=str, help="Path(s) to solidity scripts you want to compile.")
     parser.add_argument('-o', '--output', type=str, help="Output file path. If not provided, the output will be printed to stdout.")
-    parser.add_argument('--remappings', nargs='+', type=str, help="List of remappings. Optional.")
-
-    parser.add_argument('--evmVersion', type=str, help="Version of the EVM to compile for. Optional.")
-    parser.add_argument('--viaIR', type=str_to_bool, default="false", help=" Change compilation pipeline to go through the Yul intermediate representation. Optional. Default: false.")
-
-
-    # optimizer flags
-    parser.add_argument('--optimizer', type=str_to_bool, help="Turn on the optimizer. Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-runs', type=int, help="Number of optimizer runs. Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-details-peephole', type=str_to_bool, help="Peephole optimizer (opcode-based). Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-details-inliner', type=str_to_bool, help="Inliner (opcode-based). Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-details-jumpdest-remover', type=str_to_bool, help="Unused JUMPDEST remover (opcode-based). Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-details-order-literals', type=str_to_bool, help="Literal reordering (codegen-based). Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-details-deduplicate', type=str_to_bool, help="Block deduplicator (opcode-based). Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-details-cse', type=str_to_bool, help="Common subexpression elimination (opcode-based). Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-details-constant-optimizer', type=str_to_bool, help="Constant optimizer (opcode-based). Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-details-simple-counter-for-loop-unchecked-increment', type=str_to_bool, help="Unchecked loop increment (codegen-based). Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-details-yul', type=str_to_bool, help="Yul optimizer. Optional. Default: true when optimization is enabled. Default defined by solc.")
-    parser.add_argument('--optimizer-details-yul-stack-allocation', type=str_to_bool, help="Stack allocation in Yul optimizer. Optional. Default defined by solc.")
-    parser.add_argument('--optimizer-details-yul-steps', type=str, help="Optimization step sequence for Yul optimizer. Optional. Default defined by solc.")
-    
-    # Debugging flags are not valid for 0.5.17
-    #parser.add_argument('--debug-revertStrings', type=validate_revert_strings, help="How to treat revert (and require) reason strings. Optional. Default defined by solc.")
-    #parser.add_argument('--debug-debugInfo', type=str, nargs='+', help="How much extra debug information to include in comments in the produced EVM assembly and Yul code Optional. Default defined by solc.")
-    parser.add_argument('--metadata-appendCBOR', type=str_to_bool, help="The CBOR metadata is appended at the end of the bytecode by default. Optional. Default defined by solc.")
-    parser.add_argument('--metadata-bytecodeHash', type=str_to_bool, help="Use the given hash method for the metadata hash that is appended to the bytecode. Optional. Default defined by solc.")
-    #TODO: metadata-bytecodeHash arguments
-
-
-    # Parse arguments
-    args = parser.parse_args()
+   
     
     # Initialize the JSON structure
     result = {
@@ -72,83 +123,46 @@ def main():
                 }
             },
             "optimizer": {},
-            #"debug": {} #Debug is not valid for 0.5.17
+            "debug": {}
         },
         "sources": {}
     }
 
-    # Add remappings if provided
-    if args.remappings:
-        result["settings"]["remappings"] = args.remappings
+    # Parse arguments
+    args = parser.parse_args()
 
-    # Add the viaIR flag
-    if args.viaIR:
-        result["settings"]["viaIR"] = args.viaIR
+   # Parse json key-value pairs
+    try:
+        #print(f"Creating compiler input JSON....")
+        for pair in args.pairs:
+            keys, value = parse_key_value_pair(pair)
+            result = update_nested_dict(result, keys, value)
+    except ValueError as e:
+        print(f"Error: {e}")
 
-    # Add the evmVersion
-    if args.evmVersion is not None:
-        result["settings"]["evmVersion"] = args.evmVersion
-    
-    # Process each file path
-    for file_path in args.sources:
-        # Check if the file exists
-        if not os.path.isfile(file_path):
-            print(f"Error: The file '{file_path}' does not exist.")
-            continue
-        
-        # Get the relative file path
-        relative_path = os.path.relpath(file_path)
-        
-        # Add the file to the JSON structure with the relative path in "urls"
-        result["sources"][relative_path] = {
-            "urls": [relative_path]
-        }
-    
-    # Add the optimizer settings
-    if args.optimizer is not None:
-        result["settings"]["optimizer"]["enabled"] = args.optimizer
-    if args.optimizer_runs is not None:
-        result["settings"]["optimizer"]["runs"] = args.optimizer_runs
-    result["settings"]["optimizer"] = {
-        "details": {
-            key: value for key, value in {
-                "peephole": args.optimizer_details_peephole,
-                "inliner": args.optimizer_details_inliner,
-                "jumpdestRemover": args.optimizer_details_jumpdest_remover,
-                "orderLiterals": args.optimizer_details_order_literals,
-                "deduplicate": args.optimizer_details_deduplicate,
-                "cse": args.optimizer_details_cse,
-                "constantOptimizer": args.optimizer_details_constant_optimizer,
-                "simpleCounterForLoopUncheckedIncrement": args.optimizer_details_simple_counter_for_loop_unchecked_increment,
-                "yul": args.optimizer_details_yul,
-                "yulDetails": {
-                    "stackAllocation": args.optimizer_details_yul_stack_allocation,
-                    "optimizerSteps": args.optimizer_details_yul_steps
-                } if args.optimizer_details_yul is not None else None
-            }.items() if value is not None 
-        }
-    }
-
-    # Add the debug settings
-    #if args.debug_revertStrings is not None:
-    #    result["settings"]["debug"]["revertStrings"] = args.debug_revertStrings
-    #if args.debug_debugInfo is not None:
-    #    result["settings"]["debug"]["debugInfo"] = args.debug_debugInfo
-
-    # Add the metadata settings
-    if args.metadata_appendCBOR is not None:
-        result["settings"]["metadata"]["appendCBOR"] = args.metadata_appendCBOR
-    if args.metadata_bytecodeHash is not None:
-        result["settings"]["metadata"]["bytecodeHash"] = args.metadata_bytecodeHash
-
-
+    # Save to file
     with open("input.json", 'w') as f:
         f.write(json.dumps(result, indent=4))
+    #print(f"Compiler input JSON saved to input.json")
 
     # Check if we have to allow directories
-    directories = [os.path.abspath(file_path) for file_path in args.sources]
+    source_paths = []
+    if 'sources' not in result or not isinstance(result['sources'], dict):
+        print("Error: no 'sources' provided")
+        return
+    for source in result['sources'].values():
+        if 'urls' in source and isinstance(source['urls'], list):
+            for url in source['urls']:
+                if os.path.exists(url):
+                    if os.path.isdir(url):
+                        source_paths.append(os.path.abspath(url))
+                    elif os.path.isfile(url):
+                        source_paths.append(os.path.abspath(os.path.dirname(url)))
 
-    # Run solc
+    directories = [os.path.abspath(path) for path in source_paths]
+
+    # Run solidity compiler
+    #print("Running solidity compiler...")
     process = subprocess.Popen(
         ['solc', '--allow-paths', ','.join(directories) , '--standard-json'],
         stdin=subprocess.PIPE,
@@ -167,6 +181,7 @@ def main():
         print(args.output)
     else:
         print(stdout.decode())
+        
 
 
 if __name__ == "__main__":
