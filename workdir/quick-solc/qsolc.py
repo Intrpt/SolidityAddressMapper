@@ -1,8 +1,6 @@
 import argparse
 import os
 import json
-import pathlib
-import re
 import subprocess
 from typing import Dict, Any, List, Tuple
 
@@ -102,8 +100,8 @@ def main():
     parser = argparse.ArgumentParser(description="A script to process input flags.")
     parser.add_argument("pairs", nargs='+', help="Key-value pairs in the format 'key.path=value'")
 
-    parser.add_argument('-o', '--output', type=str, help="Output file path. If not provided, the output will be printed to stdout.")
-   
+    parser.add_argument('-o', '--output', type=str, help="Output file path. If not provided, the output will be printed to stdout.") 
+    parser.add_argument('-d', '--debug', type=str_to_bool, default="false" , help="Enable debug mode. If set to true, the input JSON will be saved to 'compiler_input.json'.") 
     
     # Initialize the JSON structure
     result = {
@@ -133,17 +131,17 @@ def main():
 
    # Parse json key-value pairs
     try:
-        #print(f"Creating compiler input JSON....")
         for pair in args.pairs:
             keys, value = parse_key_value_pair(pair)
             result = update_nested_dict(result, keys, value)
     except ValueError as e:
         print(f"Error: {e}")
 
-    # Save to file
-    with open("input.json", 'w') as f:
-        f.write(json.dumps(result, indent=4))
-    #print(f"Compiler input JSON saved to input.json")
+    # Save to file if debug is enabled
+    if args.debug:
+        with open("compiler_input.json", 'w') as f:
+            f.write(json.dumps(result, indent=4))
+    #print(f"Compiler input JSON saved to compiler_input.json")
 
     # Check if we have to allow directories
     source_paths = []

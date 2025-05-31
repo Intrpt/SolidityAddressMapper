@@ -1,5 +1,5 @@
 # Quick solc
-The qsolc.py Python script creates a standard-JSON compiler input based on the provided input flags (see `python qsolc.py --help`). Then, it runs solc on the created compiler input. You can save the output to a file by using the `--output` flag. If no output flag is given, the result will be printed to the standard output.
+The qsolc.py Python script creates a standard-JSON compiler input based on the provided input flags (see `python qsolc.py --help`). Then, it runs solc on the created compiler input. You can save the output to a file by using the `--output` flag. If no output flag is given, the result will be printed to the standard output. You can observe the generated compiler_input.json by setting the `--debug` flag. It will generate a compiler_input.json.
 
 You provide compiler input flags as key-value parameters. Use "\\." to escape "." (dot). For instance the following key-value pair is used to define the source contract: `sources.example/BeerBar\.sol.urls[0]='example/BeerBar.sol'`.
 Which will be translated to:
