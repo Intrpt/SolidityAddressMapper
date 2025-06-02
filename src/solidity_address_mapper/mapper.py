@@ -452,3 +452,28 @@ class Mapper:
                 return next(objects)
             except StopIteration:
                 raise KeyError(f"Path '{item_path}' not found in JSON file '{file_path}'")
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Map a hex address in EVM bytecode to Solidity source code location."
+    )
+    parser.add_argument(
+        "--compiler_output_json", "-j", required=True, help="Path to the Solidity compiler output JSON file."
+    )
+    parser.add_argument(
+        "--address_hex", "-a", required=True, help="Hexadecimal address (e.g., 0x1525 or 1525)."
+    )
+    parser.add_argument(
+        "--contract_name", "-c", required=True, help="Name of the contract."
+    )
+
+    args = parser.parse_args()
+
+    result = Mapper.map_hex_address(
+        compiler_output_json=args.compiler_output_json,
+        address_hex=args.address_hex,
+        contract_name=args.contract_name,
+    )
+    print(result)
