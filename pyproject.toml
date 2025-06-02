@@ -1,3 +1,20 @@
+[project]
+name = "solidity_address_mapper"
+version = "0.0.1"
+description = "This Solidity mapper maps a hexadecimal address of a deployed runtime bytecode to the corresponding source code."
+readme = "README.md"
+requires-python = ">=3.6"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "hhttps://github.com/Intrpt/SolidityAddressMapper"
+Issues = "https://github.com/Intrpt/SolidityAddressMapper/issues"
+
 [tool.pytest.ini_options]
 pythonpath = "src"
 addopts = [
