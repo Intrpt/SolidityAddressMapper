@@ -20,7 +20,7 @@ def test_instruction_index(
 ):
     """Test that the instruction index is correctly calculated."""
     # Create a mapping from 'opcode' to 'index', for each index in the bin_runtime.
-    # i.e. the first two bytes 0x60 and 0x80 belong to the PUSH1 instruction.
+    # For example, the frequent initial bytes, 0x60 and 0x80, belong to the PUSH1 instruction.
     # Verifies that the mapping is correct by comparing our instructions with the given opccodes.
 
     if not os.path.isfile(compiler_output_json):
@@ -37,8 +37,8 @@ def test_instruction_index(
     for idx, (start, end) in instruction_map:
         for i in range(start, end + 1):
             # For each position in bin_runtime we get the instruction index from the mapper
-            # The instruction index should be equal to the idx from instruction_map
-            # i.e. for the first two bytes (0,1) we should get instruction index 0 (PUSH1) and so on.
+            # The instruction index should be equal to the idx from instruction_map.
+            # For example, for the first two bytes (0,1) we should get instruction index 0 (PUSH1) and so on.
             instruction_index = Mapper._instruction_index_from_hex_address(i, bin_runtime)
             assert instruction_index == idx, f"expected {idx} but got {instruction_index}"
 
@@ -52,7 +52,7 @@ def create_instruction_mapping(
     """Maps instruction indices to byte ranges in the binary runtime."""
 
     # Create a mapping from 'opcode' to 'index', for each index in the bin_runtime.
-    # i.e. the first two bytes 0x60 and 0x80 belong to the PUSH1 instruction.
+    # For example, the frequent initial bytes, 0x60 and 0x80, belong to the PUSH1 instruction.
     # Verifies that the mapping is correct by comparing our instructions with the given opccodes.
 
     def format_push_data(data_bytes: bytes) -> str:
