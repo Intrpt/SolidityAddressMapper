@@ -14,7 +14,7 @@ Which will be translated to:
 ```
 Follow this scheme to set any arbritrary parameter for the compiler input. Refer to the solidity documentation for further information about [Input Description](https://docs.soliditylang.org/en/latest/using-the-compiler.html#input-description).
 
-Note: This implementation of qsolc is slightly modified. It already sets the required input variables to create a valid output.json needed to run the solidity_address_mapper, such as useLiteralContent and outputSelection.
+Note: This implementation of qsolc is slightly modified. It already sets the required input variables to create a valid output.json needed to run the solidity_address_mapper, such as useLiteralContent and outputSelection. You can find the original qsolc here: [Intrpt/quick-solc](https://github.com/Intrpt/quick-solc)
 
 ## Complete Example
 After you installed the library contracts for the example BeerBar.sol using `npm i @openzeppelin/contracts` <ins>in the example folder</ins>, you can run qsolc.py from the "workdir/quick-solc" folder as follows:
