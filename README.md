@@ -17,8 +17,7 @@ pip install -r requirements.txt
 
 ## Getting Started
 
-For now you can run the mapper using ``Mapper.map_hex_address(...)`` as follows:
-
+You can use the mapper in your python script using ``Mapper.map_hex_address(...)`` as follows:
 ```python
 Mapper.map_hex_address(
     compiler_output_json="../BeerBar.json",
@@ -26,6 +25,14 @@ Mapper.map_hex_address(
     contract_name="BeerBar",
 )
 ```
+Or you can run it from the command line like this:
+```bash
+python mapper.py --compiler_output_json ../BeerBar.json --address_hex 0x1525 --contract_name BeerBar
+```
+
+
+
+
 
 | Parameter            | Explanation                                                                                                                                                                                                                                                                                                                |
 |----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
